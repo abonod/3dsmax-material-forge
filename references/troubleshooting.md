@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_acc2c6efdda811f1a0ca525400de85a5
-    ReservedCode1: 5CDZ4Cdg87wmCwexj6zO+zNMSl4KfeXncCRo3LmbytFDhRfiuHtrLxSznNXj2xEcGf2oum+KQlXZCi5wqGPjixHdaalc42q/CFups6ZPsxKzERLnVzFPuR4dJCJK5nPHNmcZr2KOuGr1JQqPzoQ6gYrDyzJoclu1BdgHgsriI2iQN9snR0jXFAPgCZw=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_acc2c6efdda811f1a0ca525400de85a5
-    ReservedCode2: 5CDZ4Cdg87wmCwexj6zO+zNMSl4KfeXncCRo3LmbytFDhRfiuHtrLxSznNXj2xEcGf2oum+KQlXZCi5wqGPjixHdaalc42q/CFups6ZPsxKzERLnVzFPuR4dJCJK5nPHNmcZr2KOuGr1JQqPzoQ6gYrDyzJoclu1BdgHgsriI2iQN9snR0jXFAPgCZw=
----
-
 # 故障排查
 
 按"现象 → 先查什么"组织。排错顺序比结论重要：先确认现象发生在哪一段（服务 / 推导 / 导出 / Max 执行），别跳步。
@@ -92,4 +81,3 @@ AIGC:
 - 不要把 UI 断言写成"元素存在就算过"。开关是否存在与点击后参数是否真的变，是两件事——历史 bug 全部藏在后者里。
 - 同理，"画布尺寸正常"不等于"预览球画出来了"：空 canvas 也能量出 458x571。渲染是否真的发生要看渲染循环埋点（`__mfFrames` / `__mfTris` / `__mfMesh`），别退回只看 `getBoundingClientRect`。
 - 窄屏断言要按断点算：`style.css` 的 1180px 断点只把左右栏 300/320 收窄到 260/280，中列靠 `1fr` 顶住，所以要断言中列实际像素不被压塌，而不是断言"有 3 列"。computed 的 `gridTemplateColumns` 带 `px`，取值必须 `parseFloat`，直接 `Number()` 会得到 NaN。
-*（内容由AI生成，仅供参考）*

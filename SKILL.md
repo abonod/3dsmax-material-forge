@@ -2,15 +2,6 @@
 name: 3dsmax-material-forge
 version: 0.8.4
 description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 V-Ray 材质脚本（.ms，含 VRayMtl 属性别名降级、贴图挂接、.mat 落库）。触发场景：用户要求「照这张图做个材质」「这面墙要这种质感」「帮我转成 PBR」「调 VRayMtl 的反射/粗糙度/清漆/凹凸/置换」「批量导出材质脚本」「做个壁纸/墙布/乳胶漆/铝合金(磨砂·拉丝)材质」「拉丝金属的各向异性方向怎么调」，或已有 .ms 在 Max 里执行报错、参数没生效需要按属性名失配排查；也用于扩展该工具（加参数、加属性别名、接 Arnold/Corona）。不用于建模几何体、最终渲染出图、GPU 生成本地贴图。"
-metadata:
-  AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_aa45efeadda811f1bff2525400cd780f
-    ReservedCode1: QiDg2Z04OkXU3VSDXuLfC/8eCo+eqPib2vrWy0Oc49Jc/Dla0tyNk85r4WuKCgjMUSi2FSCVz1hmoM49XukxN0FNBlGnBCGoGvHvOdEOohxIs3iBu3mAURcmMsriDnr22prY/jQfjwp5Y/e0MJYAvzdIEMy4llWhe9gJ1Vm9q0ZDydqV4oZV3NHY26s=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_aa45efeadda811f1bff2525400cd780f
-    ReservedCode2: QiDg2Z04OkXU3VSDXuLfC/8eCo+eqPib2vrWy0Oc49Jc/Dla0tyNk85r4WuKCgjMUSi2FSCVz1hmoM49XukxN0FNBlGnBCGoGvHvOdEOohxIs3iBu3mAURcmMsriDnr22prY/jQfjwp5Y/e0MJYAvzdIEMy4llWhe9gJ1Vm9q0ZDydqV4oZV3NHY26s=
 ---
 
 
@@ -352,4 +343,3 @@ python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScri
 7. 壁纸/墙布类交付，必须说明花纹来自用户提供的图（工具不生成花纹），见 `docs/wallpaper-pattern-route.md`。
 7.1 纯色模式或色板染色相关改动，再附 `ui_solid_check.py` 的 18/18 结论（纯色免上传出贴图、法线有真实起伏、两次选色画面确有变化、纯色 job 可导出 `.ms`）。
 7.2 动过区域遮罩、分级预览或参数解耦，再附 `proc_mask_check.py` 的 20/20 结论；导出链路改动另跑一遍上传→全尺寸重建→导出→`verify_ms.py` 的端到端烟测（`temp/smoke_e2e_export.py`），确认导出拿到的仍是全分辨率基准贴图。
-*（内容由AI生成，仅供参考）*

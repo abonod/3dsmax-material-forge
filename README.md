@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_b381ce3cdda711f1bff2525400cd780f
-    ReservedCode1: HjujYFD9xZdg54gQfkZTWeRb/HMGI8ob/lZl+CgFPEPfFM+QxiX0eHf6aJ/xjxa5+yzqNp4gwvL8wAGTrR7SdrigCx3K9mrICXPPhjdbH5PObtkal7aH/xxHN6Awy8DPNnFqSBJJIKwibYJynTCWKbGXu9o4gCyRbeqJJWhAHLDLDH+0fUyp8vsKZms=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_b381ce3cdda711f1bff2525400cd780f
-    ReservedCode2: HjujYFD9xZdg54gQfkZTWeRb/HMGI8ob/lZl+CgFPEPfFM+QxiX0eHf6aJ/xjxa5+yzqNp4gwvL8wAGTrR7SdrigCx3K9mrICXPPhjdbH5PObtkal7aH/xxHN6Awy8DPNnFqSBJJIKwibYJynTCWKbGXu9o4gCyRbeqJJWhAHLDLDH+0fUyp8vsKZms=
----
-
 # 3ds Max Material Forge
 
 上传一张图 → 程序化推导 PBR 五通道贴图 → 在网页里勾选 V-Ray 参数并实时预览材质球 → 导出一份可直接在 3ds Max 中 `Run Script` 打开的材质脚本。

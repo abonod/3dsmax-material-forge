@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_aeef9174ddbe11f1bff2525400cd780f
-    ReservedCode1: B+oMkGKPWdjvpwBWNixV9x/pEKqCbPCOXrxItTWd44v2jQDBR1/eJ4ujrffHKPPQ9EVvcql2MGc6s0oy+hNCvkOx8081kWZlmoCeXneDinkJAIejlb4aCHm1Y0msVA/XMC74bfdw4KivnivyU/UoWpCKPRd1rL46hX7JJVzpsLreeqAqKMvCmnU2WOc=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_aeef9174ddbe11f1bff2525400cd780f
-    ReservedCode2: B+oMkGKPWdjvpwBWNixV9x/pEKqCbPCOXrxItTWd44v2jQDBR1/eJ4ujrffHKPPQ9EVvcql2MGc6s0oy+hNCvkOx8081kWZlmoCeXneDinkJAIejlb4aCHm1Y0msVA/XMC74bfdw4KivnivyU/UoWpCKPRd1rL46hX7JJVzpsLreeqAqKMvCmnU2WOc=
----
-
 # V-Ray 材质参数 vs 现有参数 —— 待补充清单
 
 对照对象：3ds Max 中 **VRayMtl**（V-Ray 6 Update 2，兼容 V-Ray 5）全部可用参数。
@@ -204,4 +193,3 @@ V-Ray 6 里 dispersion / SSS / thinFilm 的数值属性在没有对应 `*_on` �
 ---
 
 *生成时间：2026-11-11　对照版本：VRayMtl（V-Ray 6）/ 现有 params.py 38 参数*
-*（内容由AI生成，仅供参考）*

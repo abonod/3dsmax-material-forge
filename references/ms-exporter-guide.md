@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_ab49ad6adda811f1bff2525400cd780f
-    ReservedCode1: GvM9G56mF4ktc//LIHfW6A9CHEk2KFWqUwvaN17uYEN41gP6ZToC0rP9SJgw9y6H5ODpZ+sBBYPl7A7FGU4+jO54YETxKQ0li7Ur1n/q5LoyvxFvlayGVfcom/8oqyUW/CJe0BJ/8MgP86r2ZvSJEzlXost1c6kra+KU4Ea8Evrd7ED6wlDgNvRzsk8=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_ab49ad6adda811f1bff2525400cd780f
-    ReservedCode2: GvM9G56mF4ktc//LIHfW6A9CHEk2KFWqUwvaN17uYEN41gP6ZToC0rP9SJgw9y6H5ODpZ+sBBYPl7A7FGU4+jO54YETxKQ0li7Ur1n/q5LoyvxFvlayGVfcom/8oqyUW/CJe0BJ/8MgP86r2ZvSJEzlXost1c6kra+KU4Ea8Evrd7ED6wlDgNvRzsk8=
----
-
 # MaxScript 导出机制深入说明
 
 改 `core/exporters/ms_exporter.py`、或排查"参数在 3ds Max 里没生效"时读这份。
@@ -196,4 +185,3 @@ AO 不做成独立贴图槽（VRayMtl 没有 AO 槽），而是用 `VRayDirt` �
 - 目标环境按 3ds Max 2024 / V-Ray 6.x 编写，V-Ray 7/8 靠别名降级兼容，未做实测。
 - 预览球的 three.js 效果只是近似，不等于 V-Ray 最终渲染结果。
 - 置换（`texmap_displacement`）需要模型有足够细分才能看出效果，脚本只写材质参数，不改几何体。
-*（内容由AI生成，仅供参考）*

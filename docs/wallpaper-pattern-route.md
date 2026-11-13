@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_2185eb8ede7611f1a0ca525400de85a5
-    ReservedCode1: DnsEBVHL3/xd20TtXb+hkeWWGORoq4fnAuiChxck7MA2wZBKvQoj9ffLHdPsCVbWwSxZ6leZ4QonUYvnnkSixqSCn0SkntM/WDH/RlOSEEffu/a/BdDHWd03E2gooWe2admh35MpxzakAtQitfPKIRfSm3iEkPob7ByA2mTUeBuYVlqvd6yiejQmR5E=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_2185eb8ede7611f1a0ca525400de85a5
-    ReservedCode2: DnsEBVHL3/xd20TtXb+hkeWWGORoq4fnAuiChxck7MA2wZBKvQoj9ffLHdPsCVbWwSxZ6leZ4QonUYvnnkSixqSCn0SkntM/WDH/RlOSEEffu/a/BdDHWd03E2gooWe2admh35MpxzakAtQitfPKIRfSm3iEkPob7ByA2mTUeBuYVlqvd6yiejQmR5E=
----
-
 # 壁纸花纹：技术路线决策记录（ADR-001）
 
 > 状态：已决定（v0.6.0）
@@ -86,4 +75,3 @@ AIGC:
 ## 7. 与验收的关系
 
 壁纸/墙布两条 `evals` 的通过标准不含"花纹长得对"——只含：预设命中、`uv_tiling=1`、通道挂接正确、`.ms` 静态体检通过、以及交付说明里讲清花纹来源。视觉上像不像，用 `scripts/reports/baseline/壁纸.png`、`墙布.png` 做基线对比，而不是凭印象。
-*（内容由AI生成，仅供参考）*

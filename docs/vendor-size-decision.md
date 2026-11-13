@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_0fbb81eadf5711f1b140525400de85a5
-    ReservedCode1: zjt9pJq4NUPNJIYPvecAvYhyyx6kjfx4uSbROH47x/LMeuCdjhOSa0LbnQsp+E8vfdTkPnWVvrAlqzYUQ+u7VyHyAC5fVzF6NSHa/IkVXNK3bYANyzgCaf2J4Gu1GoLWY+vInyiCzM5v3UODXR1i53Nb809cybow/igiWr/jmX3LzWC9TJs5NWUFreQ=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_0fbb81eadf5711f1b140525400de85a5
-    ReservedCode2: zjt9pJq4NUPNJIYPvecAvYhyyx6kjfx4uSbROH47x/LMeuCdjhOSa0LbnQsp+E8vfdTkPnWVvrAlqzYUQ+u7VyHyAC5fVzF6NSHa/IkVXNK3bYANyzgCaf2J4Gu1GoLWY+vInyiCzM5v3UODXR1i53Nb809cybow/igiWr/jmX3LzWC9TJs5NWUFreQ=
----
-
 # vendor 体积裁剪评估（v0.8.2）
 
 ## 结论
@@ -42,4 +31,3 @@ AIGC:
 1. 包体超过 3MB（当前 0.58MB 的 .skill 里前端是主体，还有余量）；
 2. three 升级到体积显著增大的版本（如引入 WebGPU 双后端）；
 3. 需要把预览窗口做成离线单 HTML 分发（那时才值得上单文件打包）。
-*（内容由AI生成，仅供参考）*

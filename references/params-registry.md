@@ -1,14 +1,3 @@
----
-AIGC:
-    Label: "1"
-    ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 89f2995f43cde2f2717e466bdd92de27_ac05582fdda811f1bff2525400cd780f
-    ReservedCode1: oKM7LHPeZcg9yrpxstEr/khqWATk9WhVJG0XeFOr6iy3zw9oCUqeC9ddcN6HX3yHjK9965o4qrpjMXmsYs13ebggOKk312CZ+ATS499AY+zScoRvEf+gP0UtcLoSuOUY3G9tq34IkpAuzhXq5MH1CpnK3zVg1iuLtBH5sp1J08RngEUR8XLjUTmZxOQ=
-    ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 89f2995f43cde2f2717e466bdd92de27_ac05582fdda811f1bff2525400cd780f
-    ReservedCode2: oKM7LHPeZcg9yrpxstEr/khqWATk9WhVJG0XeFOr6iy3zw9oCUqeC9ddcN6HX3yHjK9965o4qrpjMXmsYs13ebggOKk312CZ+ATS499AY+zScoRvEf+gP0UtcLoSuOUY3G9tq34IkpAuzhXq5MH1CpnK3zVg1iuLtBH5sp1J08RngEUR8XLjUTmZxOQ=
----
-
 # 参数注册表扩展指南
 
 `core/params.py` 的 `PARAMS` 列表是单一事实来源（SSOT）。改参数只改这里，前端面板、three.js 预览、MaxScript 导出三条链自动跟随。
@@ -188,7 +177,6 @@ Param(
 ## 接新渲染器
 
 设计上留了端口：一个渲染器 = 一个映射字段 + 一个 exporter。新增 Arnold / Corona 时，加 `arnold_on` / `arnold_map` 之类的字段并写新的 exporter，不动已有参数定义和 `app.js`。不要为了接新渲染器去改 `Param` 的既有语义。
-*（内容由AI生成，仅供参考）*
 
 ## 全部 61 项清单（按档位标注）
 
