@@ -1,0 +1,89 @@
+{
+  "apply": true,
+  "roots": [
+    "D:\\Marvis skill\\3dsmax-material-forge\\output"
+  ],
+  "files": [
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\无法线.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\无法线.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\木地板_测试.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\28590b25e12b\\export\\木地板_测试.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\无法线.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\无法线.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\木地板_测试.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\3d6e1a823e8b\\export\\木地板_测试.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "断图测试",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\断图测试.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\断图测试.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\断图测试.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "断图测试",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\木地板_测试.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\断图测试.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\cc9eb5288a17\\export\\木地板_测试.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\无法线.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\无法线.ms"
+    },
+    {
+      "action": "regen",
+      "ok": true,
+      "detail": "按快照重导出（38 项参数 / 6 张贴图），预检通过（阻断 0 / 提示 1）",
+      "material": "无法线",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\木地板_测试.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\无法线.ms",
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\d9572a62e251\\export\\木地板_测试.ms"
+    },
+    {
+      "action": "fix_text",
+      "ok": true,
+      "detail": "重导出不可用（快照指向的贴图已不存在，无法重导出），退化为文本修复：修复 7 处 #\"...\"（无参数快照，仅做最小语法修复）",
+      "backup": "D:\\Marvis skill\\3dsmax-material-forge\\output\\f189f7629753\\export\\1158374735_1_.ms.legacy_bak",
+      "ms_path": "D:\\Marvis skill\\3dsmax-material-forge\\output\\f189f7629753\\export\\1158374735_1_.ms",
+      "fallback": true,
+      "file": "D:\\Marvis skill\\3dsmax-material-forge\\output\\f189f7629753\\export\\1158374735_1_.ms"
+    }
+  ]
+}

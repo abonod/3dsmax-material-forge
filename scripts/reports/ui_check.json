@@ -1,0 +1,173 @@
+{
+  "http": "http://127.0.0.1:8791",
+  "checks": [
+    {
+      "item": "新手模式为默认",
+      "expect": "beginner",
+      "actual": "beginner",
+      "ok": true
+    },
+    {
+      "item": "新手模式可见参数数",
+      "expect": "5",
+      "actual": 5,
+      "ok": true
+    },
+    {
+      "item": "进阶参数可折叠",
+      "expect": "True",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "进阶折叠内含全部其余项",
+      "expect": "=56（总参数 61 - 新手 5）",
+      "actual": 56,
+      "ok": true
+    },
+    {
+      "item": "三步引导在位",
+      "expect": ">=3",
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "item": "预设按钮数与标签一致",
+      "expect": "=16 且 >=16",
+      "actual": 16,
+      "ok": true
+    },
+    {
+      "item": "自检按钮初始禁用",
+      "expect": "True",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "切进阶后可见参数数",
+      "expect": "=61",
+      "actual": 61,
+      "ok": true
+    },
+    {
+      "item": "切进阶后无折叠区",
+      "expect": "False",
+      "actual": false,
+      "ok": true
+    },
+    {
+      "item": "预设逐个快照校验",
+      "expect": "全部预设均回填为快照值",
+      "actual": "16/16",
+      "ok": true
+    },
+    {
+      "item": "切回新手后可见参数数",
+      "expect": "5",
+      "actual": 5,
+      "ok": true
+    },
+    {
+      "item": "中级档可见参数数",
+      "expect": "30",
+      "actual": 30,
+      "ok": true
+    },
+    {
+      "item": "中级档含涂层光泽分层",
+      "expect": "True",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "中级档不显示色散",
+      "expect": "False",
+      "actual": false,
+      "ok": true
+    },
+    {
+      "item": "中级切回新手",
+      "expect": "5",
+      "actual": 5,
+      "ok": true
+    },
+    {
+      "item": "导出按钮初始禁用",
+      "expect": "True",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "上传后自检按钮解锁",
+      "expect": "disabled=False",
+      "actual": false,
+      "ok": true
+    },
+    {
+      "item": "上传后生成贴图缩略",
+      "expect": ">=3",
+      "actual": 6,
+      "ok": true
+    },
+    {
+      "item": "点自检后报告卡渲染",
+      "expect": "有 .rp-head 与条目",
+      "actual": {
+        "head": "自检报告 · 阻断 0 · 提示 0",
+        "items": 13,
+        "tags": 13,
+        "env": "V-Ray：已安装 6.20.06（Max 2024） · 当前渲染器：待 Max 运行时探测",
+        "cls": "ok"
+      },
+      "ok": true
+    },
+    {
+      "item": "窄屏无横向滚动",
+      "expect": "scrollWidth <= 视口宽",
+      "actual": "1000 <= 1000",
+      "ok": true
+    },
+    {
+      "item": "窄屏中列未被压塌",
+      "expect": ">=360",
+      "actual": 458,
+      "ok": true
+    },
+    {
+      "item": "窄屏参数控件不溢出",
+      "expect": "溢出 0 行 / 窄控件 0 个",
+      "actual": "溢出 0 / 偏窄 0 / 控件 37 个 / 共 61 行",
+      "ok": true
+    },
+    {
+      "item": "窄屏预设按钮不溢出",
+      "expect": "全部在位且不越界",
+      "actual": "共 16 个 / 越界 0 / 零宽 0",
+      "ok": true
+    },
+    {
+      "item": "窄屏预览画布仍有面积",
+      "expect": ">=240x160",
+      "actual": "458x571",
+      "ok": true
+    },
+    {
+      "item": "预览球持续出帧",
+      "expect": "0.8s 内帧数增长",
+      "actual": "966 -> 1026",
+      "ok": true
+    },
+    {
+      "item": "预览球真画出三角形",
+      "expect": ">=3000 且网格已挂载",
+      "actual": "51600 三角形 / mesh=True",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "D:\\Marvis skill\\3dsmax-material-forge\\scripts\\reports\\ui_beginner.png",
+    "D:\\Marvis skill\\3dsmax-material-forge\\scripts\\reports\\ui_advanced.png",
+    "D:\\Marvis skill\\3dsmax-material-forge\\scripts\\reports\\ui_report_card.png",
+    "D:\\Marvis skill\\3dsmax-material-forge\\scripts\\reports\\ui_narrow.png"
+  ]
+}

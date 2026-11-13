@@ -1,0 +1,115 @@
+{
+  "version": "0.6.0",
+  "captured_at": "2026-11-12 16:38:49",
+  "browser": "msedge.exe",
+  "headless": false,
+  "schema_probe": "ok",
+  "frames": 541,
+  "shots": [
+    {
+      "preset": "壁纸",
+      "key": "wallpaper",
+      "file": "壁纸.png",
+      "size_kb": 82.6,
+      "sha256": "c975084498e66479",
+      "canvas": [
+        854,
+        775
+      ],
+      "params": {
+        "key": "wallpaper",
+        "anisotropy_on": false,
+        "anisotropy_amount": 0.7,
+        "anisotropy_axis": 0,
+        "gloss": 0.45,
+        "reflect": 0.16,
+        "uv": 1,
+        "normal": 1.3
+      }
+    },
+    {
+      "preset": "墙布",
+      "key": "wallcloth",
+      "file": "墙布.png",
+      "size_kb": 81.0,
+      "sha256": "819c9a18a077ce59",
+      "canvas": [
+        854,
+        775
+      ],
+      "params": {
+        "key": "wallcloth",
+        "anisotropy_on": false,
+        "anisotropy_amount": 0.7,
+        "anisotropy_axis": 0,
+        "gloss": 0.3,
+        "reflect": 0.1,
+        "uv": 1,
+        "normal": 1.8
+      }
+    },
+    {
+      "preset": "乳胶漆",
+      "key": "latex_paint",
+      "file": "乳胶漆.png",
+      "size_kb": 81.4,
+      "sha256": "8534993bc8b7cc70",
+      "canvas": [
+        854,
+        775
+      ],
+      "params": {
+        "key": "latex_paint",
+        "anisotropy_on": false,
+        "anisotropy_amount": 0.7,
+        "anisotropy_axis": 0,
+        "gloss": 0.35,
+        "reflect": 0.1,
+        "uv": 1,
+        "normal": 0.55
+      }
+    },
+    {
+      "preset": "铝合金(磨砂)",
+      "key": "alu_frosted",
+      "file": "铝合金_磨砂_.png",
+      "size_kb": 144.2,
+      "sha256": "5e1bf692467a73d5",
+      "canvas": [
+        854,
+        775
+      ],
+      "params": {
+        "key": "alu_frosted",
+        "anisotropy_on": false,
+        "anisotropy_amount": 0.7,
+        "anisotropy_axis": 0,
+        "gloss": 0.78,
+        "reflect": 0.88,
+        "uv": 1,
+        "normal": 0.95
+      }
+    },
+    {
+      "preset": "铝合金(拉丝)",
+      "key": "alu_brushed",
+      "file": "铝合金_拉丝_.png",
+      "size_kb": 182.3,
+      "sha256": "45d3a0910463b3d3",
+      "canvas": [
+        854,
+        775
+      ],
+      "params": {
+        "key": "alu_brushed",
+        "anisotropy_on": true,
+        "anisotropy_amount": 0.72,
+        "anisotropy_axis": 0,
+        "gloss": 0.88,
+        "reflect": 0.9,
+        "uv": 2,
+        "normal": 0.65
+      }
+    }
+  ]
+}

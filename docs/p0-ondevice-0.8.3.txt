@@ -1,0 +1,28 @@
+P0 三项实机验证证据（3ds Max 2024 26.2.0.22013 + V-Ray 6.20.06 中文版）
+方式：3dsmax.exe -silent -U MAXScript driver_p0.ms，无头 fileIn 两次导出脚本
+场景：第 1 槽先放用户自有材质 ProtectedMat，再依次载入 墙面_白.ms / 墙面_米黄.ms，最后重载 墙面_白.ms
+------------------------------------------------------------
+MAXVER=#(26000, 64, 0, 26, 2, 0, 22013, 2024, ".2 Update")
+RENDERER_SET=V_Ray_6__update_2_1 CURRENT=V_Ray_6__update_2_1
+SLOT1_BEFORE=ProtectedMat
+SLOT2_DEFAULT_LOOK=02 - Default / PhysicalMaterial
+FILEIN1_ERR=
+SLOT_WHITE=2 COUNT=1
+FILEIN2_ERR=
+SLOT_BEIGE=3 COUNT=1
+SLOT1_AFTER=ProtectedMat
+P0A_SLOT_OK=true
+FILEIN3_ERR=
+REPEAT_COUNT=1 REPEAT_SLOT=2 REUSE_HINT=1
+P0A_REUSE_OK=true
+TEX[normal_map]=D:\Marvis skill\3dsmax-material-forge\output\1ae4fa3a0c0e\export\墙面_白\textures\normal.png EXISTS=true
+TEX[texmap_roughness]=D:\Marvis skill\3dsmax-material-forge\output\1ae4fa3a0c0e\export\墙面_白\textures\roughness.png EXISTS=true
+TEX_TOTAL=2 MISSING=0 SIBLING=2
+TEXDIR=D:\Marvis skill\3dsmax-material-forge\output\1ae4fa3a0c0e\export\墙面_白\textures FILES_MISSING=0
+P0B_TEX_OK=true
+LOG1_LEN=3144 LOG2_LEN=1564
+LOG_HAS_FAIL=0 LOG_HAS_SKIP=1
+LOG_MATLIB_LINE=材质库文件，材质仅保留在材质编辑器中（可手动另存为: D:/Marvis skill/3dsmax-material-f
+P0C_MATLIB_OK=true
+DONE=1
+（内容由AI生成，仅供参考）

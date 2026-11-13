@@ -1,0 +1,851 @@
+{
+  "skill_name": "3dsmax-material-forge",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我这有张参考图，D:\\素材\\墙\\red_brick.png，想做个跟它质感一样的红砖墙材质，用在 3ds Max 2024 + V-Ray 6，粗糙度大概半哑光，缝那里要有点凹凸感",
+      "expected_output": "启动服务或走无头 API 完成一次导出，产出 output/<job_id>/ 下五通道贴图与 .ms；.ms 里 roughness 落在 0.55 附近，凹凸通道只挂 height 而非 normal（用户要的是'缝那里有凹凸'；导出逻辑对仅勾法线、无高度图的场景也必须走 V-Ray 法线贴图节点包装、bump 子槽留空，法线图绝不直挂 bump，且节点类名要兼容中文版 V-Ray 的本地化注册名）——该条已由 verify_ms.py 的凹凸通道断言静态把关，并用 verify_ms.py 体检通过后给出 .ms 绝对路径与 Run Script 指引",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "verify_ms"
+            ],
+            "hint": "必须说明产物经 verify_ms 体检"
+          },
+          {
+            "any": [
+              "run script",
+              "运行脚本"
+            ],
+            "hint": "必须给 Run Script 指引"
+          },
+          {
+            "any": [
+              "0.55",
+              "半哑光"
+            ],
+            "hint": "粗糙度落在 0.55 附近"
+          },
+          {
+            "any": [
+              "height",
+              "高度"
+            ],
+            "hint": "凹凸要讲清只挂 height"
+          },
+          {
+            "any": [
+              "法线贴图节点",
+              "vraynormalmap",
+              "vray_法线"
+            ],
+            "hint": "仅法线时走 V-Ray 法线节点包装"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "法线直接挂 bump",
+              "法线图直挂 bump"
+            ],
+            "hint": "法线图不得直挂 bump"
+          }
+        ],
+        "artifact": {
+          "preset": "concrete",
+          "contains": [
+            "#(\"bump\")"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 2,
+      "prompt": "帮我把这个文件夹里的图 D:\\素材\\地板 全部批量转成 V-Ray 材质，每张一个 .ms，我自己到 Max 里挨个跑",
+      "expected_output": "对目录内每张图走一遍 upload → export，材质名按文件名生成，逐个产出 .ms 与独立 textures/；不启动 3ds Max；交付时列出全部 .ms 路径与体检结果汇总",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "每张",
+              "逐个",
+              "逐张"
+            ],
+            "hint": "要说明逐张各出一份"
+          },
+          {
+            "any": [
+              "textures"
+            ],
+            "hint": "每份产物带独立 textures/"
+          },
+          {
+            "any": [
+              "不启动 3ds max",
+              "不启动3ds max",
+              "无需启动",
+              "不需要启动"
+            ],
+            "hint": "硬约束：运行期不启动 Max"
+          },
+          {
+            "any": [
+              ".ms"
+            ],
+            "hint": "交付 .ms 路径"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "3dsmaxbatch",
+              "自动打开 3ds max 执行"
+            ],
+            "hint": "不得无头启动 Max 验证"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 3,
+      "prompt": "之前导出的那个 .ms，我在 Max 里跑完材质是白的，Listener 里一堆 [FAIL]，是不是脚本坏了",
+      "expected_output": "先解释 [FAIL] 是属性名未命中而非脚本损坏；引导用户回贴 Listener 明细，按 PROP_ALIASES + 模板 case 两处同步补齐来修；不尝试无头启动 3dsmaxbatch 验证；同时排查贴图路径是否因移动 output 目录失效",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "prop_aliases",
+              "属性名"
+            ],
+            "hint": "解释 FAIL 是属性名未命中"
+          },
+          {
+            "any": [
+              "listener"
+            ],
+            "hint": "要引导回贴 Listener 明细"
+          },
+          {
+            "any": [
+              "贴图路径",
+              "textures",
+              "路径失效"
+            ],
+            "hint": "要排查贴图路径失效"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "脚本损坏",
+              "脚本坏了",
+              "重新装一遍就好"
+            ],
+            "hint": "不得直接判定脚本损坏"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 4,
+      "prompt": "客户发了张壁纸样册的图 D:\\素材\\墙\\wp_floral.png，是那种带小碎花的无纺布壁纸，帮我出个 V-Ray 材质，上墙后花纹不能被切碎重复",
+      "expected_output": "命中 wallpaper 预设（套用即整套 40 项快照替换，不是只改几个默认值）；uv_tiling=1.0 保证整卷不重复平铺，reflection_glossiness=0.45、reflect_strength=0.16（对应网参反射灰 30 / 光泽 0.5），normal_strength=1.30、coat/refraction/transparency/anisotropy 全部为关；导出 .ms 通过 verify_ms.py 体检后给出绝对路径与 Run Script 指引，并提示壁纸花纹本身需用户自己的贴图，工具不凭空生成花纹（花纹技术路线见 docs/wallpaper-pattern-route.md：工具不生成花纹图案）",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "wallpaper"
+            ],
+            "hint": "命中 wallpaper 预设"
+          },
+          {
+            "any": [
+              "uv_tiling=1.0",
+              "uv_tiling = 1.0",
+              "uv_tiling：1.0",
+              "uv_tiling 1.0"
+            ],
+            "hint": "整卷不平铺靠 uv_tiling=1.0"
+          },
+          {
+            "any": [
+              "0.45"
+            ],
+            "hint": "reflection_glossiness=0.45"
+          },
+          {
+            "any": [
+              "不生成",
+              "不凭空",
+              "需用户自己的贴图",
+              "要你提供贴图"
+            ],
+            "hint": "工具不生成花纹"
+          },
+          {
+            "any": [
+              "run script",
+              "verify_ms"
+            ],
+            "hint": "交付路径与体检"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "帮你生成花纹",
+              "自动生成花纹图案",
+              "我来画花纹"
+            ],
+            "hint": "不得声称工具生成花纹"
+          }
+        ],
+        "artifact": {
+          "preset": "wallpaper",
+          "expect_locals": {
+            "MF_UV_TILE": 1.0
+          },
+          "contains": [
+            "#(\"reflection_glossiness\")"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 5,
+      "prompt": "这面墙要贴墙布，就是那种亚麻织物的，比壁纸哑一点，摸着有颗粒起伏，图在 D:\\素材\\墙\\linen.jpg",
+      "expected_output": "命中 wallcloth 预设；与壁纸的关键差异要讲清并体现在导出里：rough_level=matte、reflection_glossiness=0.30、reflect_strength=0.10（反射灰 26）、normal_strength=1.80 且 bump_on=True bump_strength=0.70（法线 + 凹凸双层叠织物起伏）、uv_tiling=1.0；.ms 中法线走 normal 子槽、高度走 bump 子槽（两槽不互串），体检通过后交付路径",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "wallcloth"
+            ],
+            "hint": "命中 wallcloth 预设"
+          },
+          {
+            "any": [
+              "bump_on",
+              "凹凸"
+            ],
+            "hint": "法线+凹凸双层"
+          },
+          {
+            "any": [
+              "0.70",
+              "0.7"
+            ],
+            "hint": "bump_strength=0.70"
+          },
+          {
+            "any": [
+              "1.80",
+              "1.8"
+            ],
+            "hint": "normal_strength=1.80"
+          }
+        ],
+        "artifact": {
+          "preset": "wallcloth",
+          "expect_locals": {
+            "MF_UV_TILE": 1.0
+          },
+          "contains": [
+            "#(\"bump\")",
+            "#(\"normal\")"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 6,
+      "prompt": "家里刷的乳胶漆，立邦那种蛋壳光的白墙，帮我做个材质，别给我搞出那种塑料高光的感觉",
+      "expected_output": "命中 latex_paint 预设；强调这是哑面微粗糙、只有一层极淡柔光：rough_level=matte、reflection_glossiness=0.35、reflect_strength=0.10（反射灰 23）、normal_strength=0.55（墙面滚涂的极轻纹理）、coat_on=False（清漆层必须关，否则出塑料高光）；预设默认带 sheen_tier=matte，用户既然明确说蛋壳光，应把 sheen_tier 改成 eggshell（一档同时写 reflectionColor=0.22 与 reflection_glossiness=0.52），并说明档位优先于「反射光泽度」精细值、金属模式下不吃档位；导出体检通过后给路径与 Run Script 指引",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "latex_paint"
+            ],
+            "hint": "命中 latex_paint 预设"
+          },
+          {
+            "any": [
+              "eggshell"
+            ],
+            "hint": "蛋壳光要把 sheen_tier 改 eggshell"
+          },
+          {
+            "any": [
+              "coat_on",
+              "清漆"
+            ],
+            "hint": "清漆层必须关掉避免塑料高光"
+          },
+          {
+            "any": [
+              "金属",
+              "metal_mode"
+            ],
+            "hint": "要交代金属模式不吃档位"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 7,
+      "prompt": "要做一个横向拉丝的铝合金板，V-Ray 里高光要顺着丝纹拉长，参数给我调好，我之后可能还要改成竖纹",
+      "expected_output": "命中 alu_brushed 预设；metal_mode=True、reflect_strength=0.90、reflection_glossiness=0.88、uv_tiling=2.0，并显式写入 anisotropy_amount=0.72 与 anisotropy_axis=0.0（横纹）；必须说明 anisotropy_axis 是 0~1 归一化值（对应 0~180°），要竖纹改成 1.0、斜 45° 用 0.5，不要按角度或弧度填；同时说明 anisotropy 关闭时会写 0 归零，避免在 Max 里重复执行残留上一次的强度；.ms 验收标准是含 mfAssign mtl #anisotropy 与 #anisotropy_axis 两行",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "alu_brushed"
+            ],
+            "hint": "命中 alu_brushed 预设"
+          },
+          {
+            "any": [
+              "anisotropy_axis"
+            ],
+            "hint": "必须写 anisotropy_axis"
+          },
+          {
+            "any": [
+              "0~1",
+              "归一",
+              "0-1"
+            ],
+            "hint": "axis 是 0~1 归一化不是角度"
+          },
+          {
+            "any": [
+              "竖直改 1.0",
+              "竖纹 1.0",
+              "改成 1.0",
+              "用 1.0"
+            ],
+            "hint": "竖纹 axis=1.0"
+          }
+        ],
+        "artifact": {
+          "preset": "alu_brushed",
+          "contains": [
+            "#(\"anisotropy\")",
+            "#(\"anisotropy_axis\")"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 8,
+      "prompt": "我记得你这个工具以前各向异性只有一个开关，现在怎么没有强度和方向的滑杆？我要做磨砂铝但想微调拉丝方向",
+      "expected_output": "说明 0.6.0 起新增 anisotropy_amount（各向异性强度）与 anisotropy_axis（拉丝方向）两个参数，两者都在「表面」分组且只有 anisotropy_on 勾选后才可用（enable_by 置灰逻辑）；先核对用户现场装的是哪个版本——看 dist/BUILD_INFO.json 的 version 或 SKILL.md frontmatter 的 version，低于 0.6.0 就是旧包；旧包换新走 python scripts/package_skill.py（体检不过不出包），不要手工重新压缩；磨砂铝用 alu_frosted 预设后再勾各向异性、按需调 axis（0=横纹/0.5=45°/1=竖纹）",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "0.6.0"
+            ],
+            "hint": "说明 0.6.0 起新增两个参数"
+          },
+          {
+            "any": [
+              "build_info.json",
+              "skill.md"
+            ],
+            "hint": "要核对现装版本"
+          },
+          {
+            "any": [
+              "package_skill.py"
+            ],
+            "hint": "换新走打包脚本"
+          },
+          {
+            "any": [
+              "anisotropy_amount"
+            ],
+            "hint": "参数名给准"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "手工压缩",
+              "手动压缩",
+              "自己重新打 zip"
+            ],
+            "hint": "不得让用户手工打包"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 9,
+      "prompt": "我用客户给的乳胶漆照片做材质，出来的墙面像壁纸一样一块块重复，是不是你那个区域遮罩没生效",
+      "expected_output": "指出 0.7.1 起遮罩已与程序化场解耦，供图（上传图片）模式同样会用遮罩压低频明暗与粗糙，若不匀消失应查三件事：proc_mask 是否为 0、遮罩尺度相对 uv_tiling 是否被压成复读（block_m > tile_m 时 repeat_risk=True 且 amount_effective 自动下调，界面/接口回来的 mask 字段里能直接读到 repeat_risk 与 block_m_actual）、贴图勾选是否只留了粗糙度；不要建议把 proc_on 关掉来'修'遮罩；调参方向是降 uv_tiling 或调小遮罩尺度",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "proc_mask",
+              "遮罩"
+            ],
+            "hint": "先查遮罩是否为 0"
+          },
+          {
+            "any": [
+              "repeat_risk"
+            ],
+            "hint": "要给出 repeat_risk 信号"
+          },
+          {
+            "any": [
+              "uv_tiling"
+            ],
+            "hint": "调参方向是降 uv_tiling"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "把 proc_on 关掉",
+              "关闭 proc_on 就能修"
+            ],
+            "hint": "不得建议关掉程序化场来修"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 10,
+      "prompt": "1K 贴图上拖那个区域遮罩滑杆，每动一下就卡六七秒，能不能别这么钝",
+      "expected_output": "说明 0.7.2 起改成滑动中先出 320 低分辨率快预览（约 0.5 秒量级）、松手后再补一张全尺寸；拖动期间若直接点导出，前端会先把全尺寸补算完再导出，不会把 320 的图当成品；不要把'卡'归因到显卡或截图，也不要建议用户手动把尺寸降到 512（那是牺牲成品精度）；若仍卡则查是否 preview 参数未透传（/api/build 需带 preview=true 与 preview_size）",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "320"
+            ],
+            "hint": "低分辨率快预览 320"
+          },
+          {
+            "any": [
+              "preview"
+            ],
+            "hint": "preview/preview_size 透传"
+          },
+          {
+            "any": [
+              "松手",
+              "全尺寸"
+            ],
+            "hint": "松手后补全尺寸"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "显卡性能不足",
+              "换显卡",
+              "把尺寸降到 512"
+            ],
+            "hint": "不得归因显卡或让用户降成品精度"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 11,
+      "prompt": "同一个白墙我要出三版：哑光、蛋壳光、丝光，给客户挑，但我不想每次手动改一堆反射参数，容易改漏",
+      "expected_output": "引导用 sheen_tier 一个参数出三版：off 不干预、matte（反射灰 0.10 / 光泽 0.35）、eggshell（0.22 / 0.52）、satin（0.34 / 0.68），并说明它走 vray_map_multi 一档多写、同时把 brdf_useRoughness 置 0 走 reflectionGlossiness 通道；必须交代优先级：档位压过 gloss_mode/reflection_glossiness/rough_level 的精细值，金属模式（metal_mode=True）不受档位影响；三版各导一份 .ms 并通过 verify_ms.py 体检，交付时列出三份路径与各自 reflectionColor/reflection_glossiness 实际值",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "sheen_tier"
+            ],
+            "hint": "用 sheen_tier 一参数出三版"
+          },
+          {
+            "any": [
+              "brdf_useroughness"
+            ],
+            "hint": "走 reflectionGlossiness 通道"
+          },
+          {
+            "any": [
+              "metal_mode"
+            ],
+            "hint": "交代金属模式例外"
+          },
+          {
+            "any": [
+              "0.35",
+              "0.52",
+              "0.68"
+            ],
+            "hint": "三档数值要给准"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 12,
+      "prompt": "要做一块阳极氧化铝，反射带点香槟金，别给我纯白镜面那种；另外再给块水晶，边缘我想要彩边",
+      "expected_output": "铝：metal_mode=True 后调 metal_tint=#e6c9a0 一类香槟色，说明导出时是 metal_tint 与 reflect_strength 相乘写 reflectionColor（不改漫反射），因此不会顶掉明暗层级；金属模式下 sheen_tier 不生效，别拿光泽档位当金属粗糙度用。水晶：refraction_on=True 后调 dispersion（0 无色散、5 普通玻璃、15+ 火彩明显），粗折射用 refraction_glossiness；要更强的边缘彩边可开 thin_film_on 并把 thin_film_nm 调到 300~450（薄膜厚度决定干涉色相，不是越高越好）；说明 dispersion/reflection_depth/refraction_depth 都有 enable_by，折射关掉时不会写入；两份 .ms 均须体检通过并给绝对路径",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "metal_tint"
+            ],
+            "hint": "香槟金靠 metal_tint"
+          },
+          {
+            "any": [
+              "dispersion"
+            ],
+            "hint": "水晶彩边先讲色散"
+          },
+          {
+            "any": [
+              "thin_film"
+            ],
+            "hint": "更强彩边用薄膜干涉"
+          },
+          {
+            "any": [
+              "enable_by"
+            ],
+            "hint": "说明折射关闭时不写入"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 13,
+      "prompt": "我要一份瓷砖材质，表面要有缝隙里积灰的那种脏感，导出后我要能在中文版 3ds Max 2024 里直接看到效果",
+      "expected_output": "说明 AO/污垢走的是 texmap_diffuse 叠加而非替换漫反射，中文版 V-Ray 下污垢节点类名必须按 VRayDirt → VRay_Dirt → VRay_污垢 逐级探测（英文类名在中文版恒为 undefined）；脏感强度用 ao_strength 控制而不是改 albedo；导出后说明材质库保存会因 3ds Max 2024 移除 newMaterialLibrary/loadTempMaterialLibrary 而输出 [SKIP]，材质保留在材质编辑器中需手动另存 .mat，不得承诺自动生成 .mat 文件；给出 .ms 绝对路径并体检通过",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "vray_污垢",
+              "vraydirt",
+              "vray_dirt"
+            ],
+            "hint": "污垢类名逐级探测"
+          },
+          {
+            "any": [
+              "[skip]"
+            ],
+            "hint": "材质库接口输出 [SKIP] 不计 FAIL"
+          },
+          {
+            "any": [
+              "ao_strength"
+            ],
+            "hint": "脏感强度用 ao_strength"
+          },
+          {
+            "any": [
+              "texmap_diffuse",
+              "叠加"
+            ],
+            "hint": "AO 是叠加不是替换漫反射"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "会自动生成 .mat",
+              "自动生成 .mat 文件",
+              "自动存成 .mat"
+            ],
+            "hint": "不得承诺自动生成 .mat"
+          }
+        ],
+        "artifact": {
+          "preset": "tile",
+          "overrides": {
+            "ao_on": true
+          },
+          "contains": [
+            "#(\"VRayDirt\", \"VRay_Dirt\", \"VRay_污垢\")",
+            "[SKIP]"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 14,
+      "prompt": "导出脚本跑完我这边报告里一堆 FAIL 但渲染看着还行，是不是脚本坏了",
+      "expected_output": "先区分两类信号：参数写入失败才计 FAIL，环境能力缺失（如材质库接口在 Max 2024 已移除）应输出 [SKIP] 不计入 FAIL；引导核对 .ms 头部 ENV 段的 Max 版本号与当前渲染器类名（中文版 V-Ray 形如 V_Ray_6__update_2_1，不能用 findString \"vray\" 判定）；说明已知本地化差异（VRayNormalMap 注册名 VRay_法线贴图、污垢类名 VRay_污垢）会表现为「参数写了但没生效」而非 FAIL；最后给出核对顺序：ENV 段 → 逐项 [OK]/[SKIP] 日志 → 贴图挂接行",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "[skip]"
+            ],
+            "hint": "区分 SKIP 与 FAIL"
+          },
+          {
+            "any": [
+              "env"
+            ],
+            "hint": "先看 ENV 段"
+          },
+          {
+            "any": [
+              "v_ray_6",
+              "v-ray 6"
+            ],
+            "hint": "渲染器类名不能用 findString vray 判定"
+          },
+          {
+            "any": [
+              "本地化"
+            ],
+            "hint": "说明本地化差异"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "脚本坏了",
+              "脚本已损坏"
+            ],
+            "hint": "不得判定脚本损坏"
+          }
+        ],
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 15,
+      "prompt": "我先导了一个「墙面_白」，改了下色又导「墙面_米黄」，两个 .ms 都留着。结果在 Max 里跑第一个，出来是米黄色的，脚本串了？",
+      "expected_output": "先否掉「脚本坏了」的猜测：0.8.2 之前贴图固定命名 albedo.png/normal.png 且同一 job 共用一个 export/textures 目录，后一次导出直接覆盖前一次的图，旧 .ms 读到的就是新颜色。0.8.2 起按材质名建子目录（非法字符自动换成下划线），一个材质一套 textures，同名贴图不再互相覆盖；脚本里贴图按「脚本同级 textures/」相对查找，整个材质目录拷走也不丢图。核对方式：看导出目录下是否为 材质名\\textures\\，以及 .ms 里 bitmapTexture 的 filename 是否指向该目录。",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "覆盖",
+              "同名"
+            ],
+            "hint": "指出同名贴图覆盖是根因"
+          },
+          {
+            "any": [
+              "材质名"
+            ],
+            "hint": "说明按材质名隔离目录"
+          },
+          {
+            "any": [
+              "textures"
+            ],
+            "hint": "点出 textures 子目录"
+          },
+          {
+            "any": [
+              "相对",
+              "同级"
+            ],
+            "hint": "说明脚本同级相对查找贴图"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "脚本坏了",
+              "脚本有bug",
+              "脚本已损坏"
+            ],
+            "hint": "不得判定脚本损坏"
+          }
+        ],
+        "threshold": 0.8,
+        "artifact": {
+          "isolation": true,
+          "verify": false
+        }
+      }
+    },
+    {
+      "id": 16,
+      "prompt": "导出提示成功，拖进 Max 一跑就报找不到贴图。怎么能提前知道缺了哪张？",
+      "expected_output": "0.8.2 起导出接口会带一份自检结果（selfcheck：ok / checked / missing / broken_refs / absent / packed），导出结果卡直接列出缺哪个通道、缺的绝对路径、以及 .ms 里引用了但磁盘上没有的断链路径；缺图时不再只报一句「导出成功」，提示语会降级为有告警。导出前的预检也会提示「开关已开但缺某通道贴图」。处理方式：补回源图后重导，或把缺的贴图手动放回该材质的 textures 目录。",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "自检"
+            ],
+            "hint": "指向导出自检"
+          },
+          {
+            "any": [
+              "missing",
+              "缺图",
+              "缺失"
+            ],
+            "hint": "说明缺图会列出来"
+          },
+          {
+            "any": [
+              "通道"
+            ],
+            "hint": "定位到具体通道"
+          },
+          {
+            "any": [
+              "textures"
+            ],
+            "hint": "给出补图位置"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "无解",
+              "没办法"
+            ],
+            "hint": "不得声称无法提前发现"
+          }
+        ],
+        "threshold": 0.8,
+        "artifact": {
+          "selfcheck": true,
+          "verify": false
+        }
+      }
+    },
+    {
+      "id": 17,
+      "prompt": "参数面板太多了，我只想先看到常用的几个；另外能不能把贴图跟脚本一起打包给我？",
+      "expected_output": "参数分三层：初级 beginner 5 个、中级 intermediate 25 个、高级 advanced 31 个，界面上按层切换，三层合计覆盖全部参数且互不遗漏。导出时按材质名生成独立目录，贴图打包到同级 textures\\，包含 albedo / normal / height / roughness / ao / opacity 六个通道，关掉对应开关的通道不打包；导出结果卡显示打包张数与自检结论，整个材质目录可直接拷走。",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "三层",
+              "分层"
+            ],
+            "hint": "说明参数分层"
+          },
+          {
+            "any": [
+              "beginner",
+              "初级"
+            ],
+            "hint": "给出初级层"
+          },
+          {
+            "any": [
+              "打包"
+            ],
+            "hint": "说明贴图随导出打包"
+          },
+          {
+            "any": [
+              "textures"
+            ],
+            "hint": "点出 textures 目录"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "不支持分组",
+              "无法分层"
+            ],
+            "hint": "不得否认分层能力"
+          }
+        ],
+        "threshold": 0.8,
+        "artifact": {
+          "verify": false,
+          "tiers": {
+            "min_count": {
+              "beginner": 5,
+              "intermediate": 25,
+              "advanced": 31
+            },
+            "must_cover_all": true
+          },
+          "pack": [
+            {
+              "name": "默认预设",
+              "overrides": {},
+              "expect": [
+                "albedo",
+                "roughness",
+                "normal",
+                "ao"
+              ],
+              "expect_absent": [
+                "height"
+              ]
+            },
+            {
+              "name": "全通道全开",
+              "overrides": {
+                "normal_on": true,
+                "bump_on": true,
+                "ao_on": true,
+                "opacity_on": true
+              },
+              "expect": [
+                "albedo",
+                "normal",
+                "height",
+                "roughness",
+                "ao",
+                "opacity"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

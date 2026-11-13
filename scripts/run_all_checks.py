@@ -1,0 +1,95 @@
+# -*- coding: utf-8 -*-
+"""统一检查入口：一条命令跑完全部静态/行为检查
+
+为什么要有这个脚本：
+    0.8.2 的检查散在 6 个地方（evals / registry / proc_mask / ui / ui_solid /
+    export_guard），改完代码要人工记住跑哪几个，漏一个就可能把回归带出去。
+    这里全部串起来，任何一项失败即非零退出，可直接挂到提交前或 CI。
+
+用法：
+    python scripts/run_all_checks.py            # 全量（含 Edge 截图，约 3 分钟）
+    python scripts/run_all_checks.py --fast     # 跳过两个 UI 检查（约 15 秒）
+    python scripts/run_all_checks.py --json     # 机器可读汇总
+    python scripts/run_all_checks.py --only evals,export_guard
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+CHECKS = [
+    # key,            名称,                 命令,                             是否需要浏览器
+    ("evals",         "evals 断言+产物回归",  ["evals/runner.py", "--artifact"], False),
+    ("export_guard",  "导出隔离/自检/生命周期", ["scripts/export_guard_check.py"], False),
+    ("registry",      "注册表文档一致",        ["scripts/registry_check.py"],     False),
+    ("proc_mask",     "贴图元信息与遮罩",      ["scripts/proc_mask_check.py"],    False),
+    ("ui",            "主界面结构",            ["scripts/ui_check.py"],          True),
+    ("ui_solid",      "纯色模式像素",          ["scripts/ui_solid_check.py"],    True),
+]
+
+# 各脚本的收尾行格式不一，统一按关键字捞最后一条结论
+TAIL_RE = re.compile(r"(汇总[:：]|结论[:：]|ALL PASS|全部通过)")
+
+
+def _summary(stdout: str) -> str:
+    hits = [ln.strip() for ln in stdout.splitlines() if TAIL_RE.search(ln)]
+    if hits:
+        return hits[-1][:60]
+    lines = [ln.strip() for ln in stdout.splitlines() if ln.strip()]
+    return (lines[-1][:60] if lines else "")
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="3dsmax-material-forge 统一检查入口")
+    ap.add_argument("--fast", action="store_true", help="跳过需要浏览器的 UI 检查")
+    ap.add_argument("--json", action="store_true", help="输出 JSON 汇总")
+    ap.add_argument("--only", help="只跑指定项，逗号分隔：evals,export_guard,registry,proc_mask,ui,ui_solid")
+    args = ap.parse_args(argv)
+
+    only = {s.strip() for s in args.only.split(",")} if args.only else None
+    picked = [c for c in CHECKS if (only is None or c[0] in only) and not (args.fast and c[3])]
+    if not picked:
+        print("没有匹配的检查项")
+        return 2
+
+    rows, failed = [], 0
+    for key, label, cmd, _browser in picked:
+        t0 = time.time()
+        try:
+            r = subprocess.run([sys.executable] + cmd, cwd=str(ROOT), capture_output=True,
+                               text=True, encoding="utf-8", errors="replace", timeout=1800)
+            rc, out, err = r.returncode, r.stdout, r.stderr
+        except subprocess.TimeoutExpired:
+            rc, out, err = 124, "", "超时 1800s"
+        cost = time.time() - t0
+        ok = rc == 0
+        failed += 0 if ok else 1
+        rows.append({"key": key, "name": label, "ok": ok, "rc": rc,
+                     "seconds": round(cost, 1), "summary": _summary(out)})
+        if not args.json:
+            flag = "PASS" if ok else "FAIL"
+            print("[%s] %-18s %6.1fs  %s" % (flag, label, cost, rows[-1]["summary"]))
+            if not ok:
+                # 失败时把尾部输出贴出来，省得再单独跑一遍
+                for ln in (out.splitlines() + err.splitlines())[-25:]:
+                    print("       | " + ln)
+
+    ok_all = failed == 0
+    if args.json:
+        print(json.dumps({"ok": ok_all, "failed": failed, "total": len(rows), "checks": rows},
+                         ensure_ascii=False, indent=2))
+    else:
+        print("\n" + "=" * 62)
+        print("总计 %d 项检查，%s" % (len(rows), "全部通过" if ok_all else "%d 项失败" % failed))
+    return 0 if ok_all else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

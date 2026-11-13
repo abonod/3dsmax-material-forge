@@ -1,0 +1,118 @@
+[
+  {
+    "item": "纯色按钮在位",
+    "expect": "True",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "纯色按钮初始可用",
+    "expect": "False",
+    "actual": false,
+    "ok": true
+  },
+  {
+    "item": "乳胶漆预设可套用",
+    "expect": "True",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "纯色模式出贴图（免上传）",
+    "expect": ">=5",
+    "actual": 6,
+    "ok": true
+  },
+  {
+    "item": "纯色模式解锁导出",
+    "expect": "False",
+    "actual": false,
+    "ok": true
+  },
+  {
+    "item": "albedo 指向烘焙预览图",
+    "expect": "含 /preview/albedo.png",
+    "actual": "/files/93ebfd2a73da/preview/albedo.png?t=1794579589389",
+    "ok": true
+  },
+  {
+    "item": "法线贴图已生成",
+    "expect": "True",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "高度贴图已生成",
+    "expect": "True",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "法线贴图有真实起伏(std)",
+    "expect": "> 1.0（纯平面约 0.3）",
+    "actual": 20.84,
+    "ok": true
+  },
+  {
+    "item": "色板改色触发重烤（缩略图换版）",
+    "expect": "True",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "换色后 albedo 仍走烘焙预览图",
+    "expect": "含 /preview/albedo.png",
+    "actual": "/files/93ebfd2a73da/preview/albedo.png?t=1794579598338",
+    "ok": true
+  },
+  {
+    "item": "色差信息已回显",
+    "expect": "含 ΔE",
+    "actual": "色差 ΔE 0.1（旧算法 28.4）· 完全一致",
+    "ok": true
+  },
+  {
+    "item": "球面颜色倾向青绿",
+    "expect": "G/B >= R（目标 #2E6E6A）",
+    "actual": [
+      38,
+      112,
+      111
+    ],
+    "ok": true
+  },
+  {
+    "item": "二次换色球面偏红",
+    "expect": "R 明显最大（目标 #C24B3A）",
+    "actual": [
+      199,
+      76,
+      61
+    ],
+    "ok": true
+  },
+  {
+    "item": "两次选色画面确有变化",
+    "expect": "通道差之和 > 40",
+    "actual": 247,
+    "ok": true
+  },
+  {
+    "item": "纯色模式可导出 .ms",
+    "expect": "结果区出现 .ms 路径",
+    "actual": "导出成功\n.ms\nD:\\Marvis skill\\3dsmax-material-forge\\output\\93ebfd2a73da\\export\\LatexPaint_FFFFFF\\LatexPaint_FFFFFF.ms\n导出目录\nD:\\Marvis skill\\3dsmax-material-forge\\outp",
+    "ok": true
+  },
+  {
+    "item": "区域遮罩 参数在位",
+    "expect": "面板存在 proc_mask 的可编辑控件",
+    "actual": true,
+    "ok": true
+  },
+  {
+    "item": "遮罩尺度 参数在位",
+    "expect": "面板存在 proc_mask_scale 的可编辑控件",
+    "actual": true,
+    "ok": true
+  }
+]

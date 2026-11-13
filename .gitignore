@@ -1,0 +1,39 @@
+# ===== 运行期缓存与中间产物（不入库）=====
+temp/
+output/
+dist/
+build/
+__pycache__/
+*.py[cod]
+*.log
+edge_profile/
+mfprof_*/
+mf_cdp_*/
+mf_guard_*/
+mf_mask_*/
+mf_pack_*/
+mf_perf/
+*.pid
+*.raw.txt
+
+# ===== 本地环境 =====
+.venv/
+venv/
+env/
+node_modules/
+*.egg-info/
+.pytest_cache/
+
+# ===== 编辑器 / 操作系统 =====
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== 密钥与本地配置（严禁入库）=====
+.env
+.env.*
+*.local.json
+secrets.json

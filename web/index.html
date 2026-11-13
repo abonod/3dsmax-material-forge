@@ -1,0 +1,142 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Material Forge · 图片生成 3ds Max 材质</title>
+<link rel="stylesheet" href="./style.css?v=6" />
+</head>
+<body>
+<div class="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo"></span>
+      <div>
+        <h1>Material Forge</h1>
+        <p>图片 &rarr; PBR 贴图 &rarr; 3ds Max / V-Ray 材质球</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="hint" id="engineHint">渲染引擎：初始化中</span>
+    </div>
+  </header>
+
+  <!-- 主体三栏 -->
+  <main class="layout">
+
+    <!-- 左：上传 + 贴图集 -->
+    <section class="pane pane-left">
+      <div class="pane-title">素材</div>
+
+      <div id="dropzone" class="dropzone">
+        <input type="file" id="fileInput" accept="image/*" hidden />
+        <div class="dz-icon"></div>
+        <p class="dz-main">拖入图片，或点击选择</p>
+        <p class="dz-sub">png / jpg / webp / bmp / tif</p>
+      </div>
+
+      <!-- 纯色模式：手里只有色卡、没有法线图时的正确入口。
+           微结构由程序化噪声按物理尺度生成，不依赖任何上传图。 -->
+      <button type="button" class="btn" id="btnSolid">不用图片，纯色出材质</button>
+      <p class="sub-hint" id="solidHint" style="margin:6px 0 10px">
+        色板选色即可：微结构由程序化噪声生成（乳胶漆 / 艺术漆适用）
+      </p>
+
+      <div class="field">
+        <label>材质名称</label>
+        <input type="text" id="matName" value="MaterialForge" spellcheck="false" />
+      </div>
+
+      <div class="field">
+        <label>基础颜色 <span class="sub-hint">白 = 保持原色</span></label>
+        <div class="colorbar">
+          <input type="color" id="baseColor" value="#ffffff" />
+          <input type="text" id="baseColorHex" value="#FFFFFF" spellcheck="false" maxlength="7" />
+          <button type="button" class="btn tiny" id="btnColorReset">复位</button>
+        </div>
+        <div class="quickcolors" id="quickColors"></div>
+        <p class="sub-hint" id="tintInfo"></p>
+      </div>
+
+      <div class="field">
+        <label>细节强度 <b id="detailVal">1.00</b></label>
+        <input type="range" id="detail" min="0" max="3" step="0.05" value="1" />
+      </div>
+
+      <div class="field">
+        <label>法线推导强度 <b id="nstrVal">1.00</b></label>
+        <input type="range" id="nstr" min="0" max="2" step="0.05" value="1" />
+      </div>
+
+      <button type="button" class="btn ghost" id="btnRedo" disabled>按当前强度重算贴图</button>
+
+      <div class="pane-title mt">贴图集<span class="pane-hint">勾选的才应用到材质球</span></div>
+      <div class="texgrid" id="texgrid"></div>
+    </section>
+
+    <!-- 中：材质球预览 -->
+    <section class="pane pane-center">
+      <div class="viewer-toolbar">
+        <div class="seg" id="shapeSeg">
+          <button type="button" data-shape="sphere" class="active">球体</button>
+          <button type="button" data-shape="cube">立方体</button>
+          <button type="button" data-shape="plane">平面</button>
+          <button type="button" data-shape="torus">圆环</button>
+        </div>
+        <div class="seg" id="lightSeg">
+          <button type="button" data-light="studio" class="active">棚拍</button>
+          <button type="button" data-light="outdoor">户外</button>
+          <button type="button" data-light="dark">暗场</button>
+        </div>
+        <button type="button" class="btn tiny" id="btnSpin">停止旋转</button>
+      </div>
+      <div class="viewport" id="viewport">
+        <div class="vp-empty" id="vpEmpty">上传图片后在此预览材质球</div>
+      </div>
+      <div class="viewer-foot">
+        <span id="statLine">未加载素材</span>
+        <span id="rebuildDot" style="display:none">· 正在重烤贴图…</span>
+      </div>
+    </section>
+
+    <!-- 右：参数面板 -->
+    <section class="pane pane-right">
+      <div class="pane-title">
+        <span>V-Ray 参数</span>
+        <div class="seg seg-sm" id="modeSeg">
+          <button type="button" data-mode="beginner" class="active">新手</button>
+          <button type="button" data-mode="intermediate">中级</button>
+          <button type="button" data-mode="advanced">进阶</button>
+        </div>
+      </div>
+
+      <div class="steps" id="steps">
+        <b>三步出材质</b>
+        <ol>
+          <li>左栏拖入一张图 &rarr; 自动推导 PBR 贴图</li>
+          <li>下面点一个预设（木纹 / 大理石 / 玻璃…）&rarr; 只动「常用」5 项微调</li>
+          <li>点「导出 .ms」&rarr; 3ds Max 里 Scripting &rarr; Run Script 选中它；<br />
+              有选中物体时材质会自动赋上</li>
+        </ol>
+      </div>
+
+      <div class="presets" id="presets"></div>
+
+      <div id="paramPanel" class="panel"></div>
+
+      <div class="export-box">
+        <button type="button" class="btn ghost" id="btnPreflight" disabled>导出前自检</button>
+        <button type="button" class="btn primary" id="btnExport" disabled>导出 MaxScript (.ms)</button>
+        <div class="export-result" id="exportResult"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script type="module" src="./app.js?v=7"></script>
+</body>
+</html>
