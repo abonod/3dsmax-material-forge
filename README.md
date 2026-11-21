@@ -79,7 +79,7 @@ Python 依赖（见 `requirements.txt`）：`fastapi` / `uvicorn` / `python-mult
 
 `.skill` 是标准 zip 容器（可改名为 `.zip` 用压缩软件打开）。
 
-1. 到 [Releases](https://github.com/abonod/3dsmax-material-forge/releases) 下载 `3dsmax-material-forge-0.8.4.skill`；
+1. 到 [Releases](https://github.com/abonod/3dsmax-material-forge/releases/latest) 下载最新版 `3dsmax-material-forge-0.11.1.skill`（当前版本 0.11.1，历史版本在同一页面可选）；
 2. 在 Marvis 中导入该 skill，或用压缩软件解压到任意目录；
 3. 进入解压目录，双击 `启动.bat`，浏览器会自动打开 `http://127.0.0.1:8765`。
 
