@@ -14,11 +14,71 @@
 
 from __future__ import annotations
 
-__version__ = "0.8.4"
+__version__ = "0.11.1"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.11.1": [
+        "【P4·真机结案】色散与法线凹凸叠加不再是「只到机制」：V-Ray 侧渲出 dispersion 与 normal_bump，Corona 侧渲出 normal_bump，全部人工目视 + 像素量化。凹凸可信度做了开关对照——ON 与 OFF 平均绝对差 27.41、76% 像素差>10、细节梯度 2.82 vs 2.01，证明确实是凹凸贴图在起作用，而不是 64 段球体的多边形轮廓假象",
+        "【真机缺陷·visual_probe 语法错】模板第 153 行 `StandardMaterial name:\"__MF_SENTINEL__` 缺闭合引号，真机 fileIn 直接报「位于 bad，需要 <因子>」，此前从未真机跑过所以没暴露",
+        "【真机缺陷·V-Ray 降采样静默落空】gen_visual_probe 写的是 progressive_maxSubdivs / dmc_minSubDivs，真机（V-Ray 6.20.06）根本没有这两个属性，整段 try 静默吞掉，导致单张 480×360 渲图跑 900s。改按真机实名 progressive_max_render_time / progressive_maxSamples / progressive_noise_threshold / adaptiveSubdivision_minRate|maxRate|threshold 下发，并关掉 GI",
+        "【假通过缺口·探针从未带版本证据】gen_probe 生成器当时根本没注入 compat 探测段，日志里既无 COMPAT_LEVEL 也无 BAD 行——也就是说 P3/P5/P6/P7 宣称的「verify_probe_log.py --require-compat 强制版本证据」在真机上必然判 FAIL，而它此前只在自测里跑过，属典型的机制在、证据无。现改为调用 core/compat.probe_ms_logfn() 注入，版本证据同时写进 Listener 与日志文件",
+        "【P1 补强·槽位回读 BAD 计数】探针新增每个贴图槽「写完再读回、读回为空即 BAD」的校验并输出独立 BAD 行，判据器 C5 由「无 [FAIL] 行」升级为「BAD=0」，杜绝「槽里有东西但其实是上一 job 残留」的误判",
+        "【回归拦截】probe_gen_check 增加 MAX_VERSION / MAX_LANG / COMPAT_LEVEL / BAD 四类标记断言：生成器一旦漏注入探测段，静态检查当场 FAIL，不用等到换机器跑真机才发现",
+        "【反查·P0–P7 落地审计】新增 scripts/p_series_audit.py：把八项修复各自的核心断言固化成判据（不认文档承诺，只认代码事实），并配 6 个反例自测验证判据具备判别力——P5 顺序倒置 / P6 去掉类表比对 / P7 verified 缺 evidence / P7 证据未随包分发 / P2 全局删 additionalBumpOn / P0 文档改一字，全部必须判 FAIL。反例的替换串一律锚定键名与结构、不锚定具体文案，否则取证文案一改，反例就退化成永远 PASS 的假覆盖（P7 首个反例正是这样失效的）。两项已注册进 run_all_checks（p_series / p_series_neg），回退即整体非零退出",
+        "【反查事故·文档水印】docs/vray-param-gap.md 被带 AI 水印的编辑器保存过一次，正文未改但 --check 报漂移，等于「文档一致性」这项检查在说谎。gen_param_gap.py 增加 strip_watermarks() 剔除头尾水印后再比对，且保留「正文改一字仍 FAIL」的反例，不允许借净化放过真实漂移",
+        "【反查事故·证据含糊】core/compat.py 里三个 verified 项的 evidence 原本只写「本机叠加链真机日志」，无法判断是哪个文件、跑到什么程度。改为指向归档日志与关键字段值（MAX_VERSION=26000 / MAX_LANG=zh / COMPAT_LEVEL=supported / BAD=0）及四张目视 PNG，并重生成 version-matrix.md",
+        "【证据归档】真机日志 docs/evidence/probe_max2024_vray62006_corona12.log 与四张 PNG 归档进 docs/evidence，证据台账同步改写：P4 由「待目视」转「已目视」，P3/P5/P6/P7 明确标注「只有本机单版本，跨版本仍无真机」",
+        "【反查事故·证据文件根本没进包】package_skill.py 的 EXCLUDE_SUFFIX 把 .log 全局排除，而 compat.py 三个 verified 项的 evidence 正指向 docs/evidence/*.log——即「包里声称支持某版本，支撑证据却不随包」，用户拿到包无法自证，是静默断链，且此前没有任何一项检查覆盖它（自测只验证字段在不在，不验证文件在不在）。修法三条：① docs/evidence 下 .log 走白名单进包；② 新增 verify_evidence_chain()，出包前先预演将要进包的文件清单，凡代码/文档引用的证据文件不在清单内即中止打包（dist 保持原样，不产半成品包）；③ 同一实现由 p_series_audit 的 P7 判据复用并配反例（把白名单改回空即须 FAIL），避免打包门禁与日常审计成为两套各自漂移的判据",
+        "实测：verify_probe_log.py --selftest 12 例全过（含历史假通过场景）；真机探针 C1–C6 全 PASS（MAX_VERSION=26000 / MAX_LANG=zh / COMPAT_LEVEL=supported / BAD=0）；run_all_checks 12 项全 PASS（含 p_series 8/8 正例、p_series_neg 6/6 反例）",
+    ],
+    "0.11.0": [
+        "【P0·文档自相矛盾修复】vray-param-gap.md 改为从 core/params.py 自动生成（scripts/gen_param_gap.py --check 幂等）：此前 Sheen / Thin film 两项写「无」却标 ✅，图例与正文互相打脸。现在状态标注由 vray_prop / vray_on / vray_off / vray_map 字段推导，代码改了文档不跟着改会直接 `--check` 失败，不再有手写空间",
+        "【P1·假通过机制性阻断】探针日志新增绑定校验：每份材质 fileIn 后必须先清空 medit 24 槽（for i=1 to 24 用 StandardMaterial 覆盖）再载入再回读，并在日志里落 BIND_OK=<文件名>|<材质名>；scripts/verify_probe_log.py 把「无 BIND_MISMATCH = 通过」升级为硬判据——fileIn [FAIL] 但回读有结果、或回读材质名与预期不符，一律判 FAIL。历史教训（探针路径少一层子目录导致 4 份 fileIn 全 FAIL、却回读上一轮残留材质而误判通过）现在无法再复现",
+        "【P1·判据器自测 9 例】verify_probe_log.py --selftest 覆盖 9 类假通过形态：fileIn 失败、缺绑定证据、未跑完、VERDICT=FAIL、槽位校验>0、含 [FAIL] 行、降级计数>0 却报 OK、缺版本证据 + require_compat、job 数不符，全部按期望判 FAIL；该自测已注册进 run_all_checks，机制失效会被每次交付拦住",
+        "【P2·法线+凹凸叠加打通】不是加参数而是重做装配策略：开启 nb_overlay 后两层都进包装器——V-Ray 侧法线进 VRayNormalMap.normal_map、凹凸进其 bump_map，材质 texmap_bump 只挂包装器本体；Corona 侧法线进 CoronaNormal.normalMap、凹凸进 additionalBump，且必须同时置位 additionalBumpOn 并回读确认为 true（旧实现只写贴图、开关留默认 false，真机表现是「凹凸挂上了但完全没效果」却仍打印成功，属典型的写入成功≠生效）。强度分两层下发：法线强度归材质 bump_multiplier（节点无独立法线强度属性，日志显式声明该约束），凹凸强度归节点 bump_multiplier，两者不再被同一个含 mult 字样的循环一锅端",
+        "【P3·跨语言类名硬校验】scripts/compat_check.py 新增中英别名覆盖检查：LANG_ALIASES 里登记的本地化注册名必须真的出现在模板候选链里，只写进文档不写进代码会直接 FAIL（第一版就抓出 VRay_材质 / Corona置换修改器 两个缺口，其中置换修改器的真实缺口是检查器扫描范围漏了 tpl_common.py）",
+        "【P3·版本等级诚实性】MATRIX 中标 verified 的版本必须恰好等于本机基线且必须带 evidence 字段——「打算支持」写成「已验证」会被机器拦下。当前只有 Max 2024 / V-Ray 6 / Corona 12 三个 verified，其余为 supported / untested",
+        "【P4·目视取证管线】新增 scripts/gen_visual_probe.py：生成可在 Max 里一键跑的 visual_probe.ms（固定相机+主光+受光立方体+深色背景，720×540，vfb:off 不弹窗），逐个渲出色散 / 法线凹凸叠加的 PNG，并把待目视项写进 visual_manifest.json（passed 初值必须为 null，未目视就填 true 视为伪造证据）。scripts/visual_gen_check.py 校验生成物结构与 GBK 编码，已注册进 run_all_checks",
+        "【P5·3ds Max 版本适配】材质库保存改双向降级：先 saveMaterialLibrary（2022+），失败再 saveTempMaterialLibrary（2021 及更早）；preflight 的「已移除接口」规则同步细分——newMaterialLibrary / loadTempMaterialLibrary 仍判 ERROR，saveTempMaterialLibrary 允许保留但必须出现在新接口之后作为第二级降级，顺序反了判 ERROR",
+        "【P6·V-Ray 版本适配】V-Ray 材质创建改为「Material.classes 字符串精确比对（VRayMtl / VRay_Mtl / VRay_材质）→ execute 英文名」，命中即打印实际类名；类是类表命中还是 execute 求值失败，日志能直接区分，不再出现「静默降级成 PhysicalMaterial 但日志一切正常」",
+        "【P7·Corona 版本适配】新增 core/compat.py 作为版本矩阵唯一事实源（Max 2021–2026 / V-Ray 5–7 / Corona 9–13，每项标 verified / supported / untested 与 features），生成 docs/version-matrix.md；探测段 @@COMPATPROBE@@ 注入每份 .ms，运行时输出 MAX_VERSION / MAX_LANG / ACTIVE_RENDERER / VRAY_AVAILABLE / CORONA_AVAILABLE / COMPAT_LEVEL，日志里能直接看出「在什么版本上跑的、跑到哪个能力等级」",
+        "【能力降级可见化】新增 mf_DEGRADED 计数与 mfDegrade 函数：版本能力缺失（如旧 Corona 无 additionalBumpOn）不再混进 OK，VERDICT 会输出 DEGRADED 并附降级条数；判据器同时校验「DEGRADED>0 却报 OK」为矛盾并判 FAIL",
+        "实测：run_all_checks --fast 8 项全 PASS（evals / 导出隔离 / 注册表一致 / 贴图元信息 20/20 / 判据器自测 9/9 / 探针生成 / 兼容矩阵 17/17 / 目视取证 11/11）；本机 Max 未启动，全部为静态与生成侧验证",
+    ],
+    "0.10.0": [
+        "【真机取证·第4轮】probeG：6 份材质（alu_brushed / marble / glass × corona / vray）逐份 fileIn 后按材质名 findMtlByName 回读，彻底修掉 probeE 阶段「medit 24 槽互相覆盖只能读到最后一槽」的取证缺陷。每份先清空槽再载入再回读，日志 452 行、0 error / 0 FAIL",
+        "【贴图链路·真机证实】Corona：baseTexmap/baseRoughnessTexmap 为 Bitmaptexture、baseBumpTexmap 为「Corona法线」，内层 normalMap 正确绑定同名 normal 图；V-Ray：texmap_diffuse/texmap_roughness 为 Bitmaptexture、texmap_bump 为「VRay_法线贴图」，内层 normal_map 正确绑定。两侧每份材质挂图属性数 3（无图材质 0），链路完整",
+        "【分层强度策略固化】强度只归外层槽（Corona baseBumpMapAmount / V-Ray texmap_bump_multiplier，实测 0.65 与 0.4 各自落值正确），内层包装器 multiplier 恒 1.0。若两层都写，降强度会被平方衰减，且回读只能看到一个值无法判断谁生效。已写入 ondevice_registry.json 的 texmap_chain_policy",
+        "【色散拆参数】新增 dispersion_on 开关，与 dispersion 强度分离：开关关闭时一个色散属性都不下发，让渲染器保留自己的默认（真机实测 Corona dispersion=40 + dispersionEnable=false、VRayMtl refraction_dispersion=50 + refraction_dispersion_on=false）。此前 dispersion=5.0 无条件下发，等于把所有材质的色散从默认值改成了 5",
+        "【量纲决策有证据】原来假设 V-Ray 色散是 0~1、Corona 是 0~100 需换算，实测两端默认值分别为 50 与 40、写入 0/0.02/0.2/1/5/40/100/1000 全部原值回读无钳制，判定为同一无量纲 0~100 标度，故取消换算，单值直接映射到各自属性名",
+        "【静态自检补两类断言】_SPECS 新增「凹凸槽位」与「凹凸强度属性」：Corona 必须出现 baseBumpTexmap / baseBumpMapAmount，V-Ray 必须出现 texmap_bump / texmap_bump_multiplier，并把对端的名字列入已证伪名单，交叉写错直接判 error 而不是 warn",
+        "【假通过再收口】继承 0.9.1 的 _strip_comments 去注释判定，新增断言同样只认去注释后的代码；负向用例（故意把 Corona 写成 texmap_bump、把 V-Ray 写成 baseBumpTexmap）实测均判 error，正向 16 份预设 ×2 渲染器 192 条断言全 ok、0 warn、0 error",
+        "【文档同步缺陷修复】参数注册表 references/params-registry.md 补齐 dispersion_on 行，并修正此前未随拆参数更新的计数：表面组 26→27、合计 61→62、折叠区 56→57、进阶档 61→62。registry_check 由 FAIL 转 PASS",
+        "实测：run_all_checks 6 项全 PASS（evals / 导出隔离 / 注册表文档一致 / 贴图元信息 / 主界面 / 纯色像素）；本机 Max 保持运行未强杀",
+    ],
+    "0.9.1": [
+        "【真机核对】在本机 Corona + 3ds Max 2024 中文版上完成 CoronaPhysicalMtl 属性名核对（Material.classes 全枚举 + 148 项属性 dump + 端到端跑预设回读），CORONA_PROP_TARGETS 由「文档推断」转为「真机验证」",
+        "【重大修正】Corona 类名同样会被中文版本地化：物理材质显示为「_Corona物理材质」，直接 execute \"CoronaPhysicalMtl()\" 在本机会失败（此前认为 Corona 类名是英文注册不用本地化探测，是错的）。材质创建改为「英文名 → 中文本地化名 → 按属性特征扫描 Material.classes」三级候选链，扫描判据是同时具备 baseRoughness 与 metalnessMode，与类名文本无关",
+        "【语义修正】透明不再写 opacityLevel 而是 refractionAmount：真机确认 Corona 的透明是折射透射（refractionAmount 0-1），opacityLevel 只做 alpha 遮挡，此前把玻璃映射到 opacityLevel 会得到一块不透明灰块。端到端实测 glass 预设 refractionAmount=1.0、baseRoughness=0.02、baseIor=1.52 全部正确落值",
+        "【语义修正】金属度只能二值化：物理材质没有标量金属度，只有 metalnessMode（整数枚举 0/1）与 metalnessTexmap，0.3/0.7 这类中间值无法表达，resolve_corona 改为按 0.5 阈值二值化；候选链剔除并不存在的 baseMetalness（实测 metal 预设 metalnessMode=1、baseIor=2.2 正确）",
+        "【语义修正】色散两段式：真机确认 dispersion 默认 40 且需 dispersionEnable=true 才生效，新增 CORONA_PROP_ON_SWITCH 写入使能开关（glass 预设 disperson=5 + dispersionEnable=true 实测生效）",
+        "【命名修正】按真机 dump 收紧属性名：opacityLevel、selfIllumColor/selfIllumLevel、sssAmount/sssRadius、baseAnisoRotation、refractionAmount；废弃文档推断的 refractIOR、levelOpacity、colorSelfIllum、levelSelfIllum、baseSss*",
+        "【已知缺陷收口】物理材质无薄膜层（无任何 thinFilm* 属性），薄膜两项从透传与丢弃表摘除；V-Ray 侧 resolve_vray 同样不输出该键，属两端共同缺口，已在代码注释与 SKILL.md 标注",
+        "实测：16 份 Corona 预设脚本重新生成，baseMetalness/thinFilm/refractIOR 残留计数均为 0，metalnessMode/refractionAmount/dispersionEnable 命中正确；metal 与 glass 两套 .ms 在真机 fileIn 无报错（6+7 项属性全部写入，0 FAIL）",
+    ],
+    "0.9.0": [
+        "【新能力】导出目标可切换：新增 renderer 参数（vray / corona），Corona 侧生成 CoronaPhysicalMtl 脚本，创建失败时按 CoronaPhysicalMtl → CoronaLegacyMtl → PhysicalMaterial 逐级降级，与 V-Ray 侧的多级兜底对称",
+        "【翻译层】新增 resolve_corona：光泽度→baseRoughness 反向、透明度→baseOpacity、coat/sheen/SSS/薄膜/色散/各向异性按 base* 候选取名，语义键与 V-Ray 侧共用同一套 SSOT，真实属性名由 CORONA_PROP_TARGETS 候选链解析",
+        "【正确性】金属色回灌基色：V-Ray 把金属色放在 reflectionColor，Corona 只有一个 baseColor 承接，不回灌会让铜/铝预设变成白金属。触发条件不只看 metal_mode（预设里存在 metalness=1.0 且不开开关的组合），实测 alu_brushed (0.847,0.854,0.865)、alu_frosted (0.835,0.825,0.794) 正确成色",
+        "【正确性】丢弃项改为全集求差：原实现只遍历白名单，凡是「不在白名单又没被映射」的键会静默消失（实测漏掉未消费的 reflectionColor / refractionColor）。现在对语义键全集求差，并过滤语义等价项（brdf_useRoughness / doubleSided / 反射折射深度 / energyPreservation 等）不刷屏",
+        "【缺陷修复】Corona 无依赖使能开关：新增 CORONA_PROP_ON_SWITCH / CORONA_PROP_FOLLOW 空表，修复此前把 refraction_dispersion_on、thinFilm_on 写到 CoronaPhysicalMtl 上的属性不存在 FAIL（Corona 侧色散只有数值、薄膜由 IOR+厚度直接生效）",
+        "【节点适配】法线经 CoronaNormal 包装、AO 用 CoronaAO 叠加漫反射、置换修改器按当前渲染器优先的候选链创建（CoronaDisplacementMod ⇄ VRayDisplacementMod）",
+        "【隔离】导出目录按渲染器分开，修复材质名本身以 _corona 结尾时被拼成 xxx_corona_corona；同名材质分别导两套不再互相覆盖 .ms 与贴图",
+        "【界面】新增目标渲染器切换段：参数面板标题、导出结果卡文案、导出前自检的环境段随目标渲染器切换；本机未装 Corona 只给 WARN 不阻断（脚本自带降级）",
+        "实测：V-Ray / Corona 两套脚本静态自检 ok=True、阻断 0；HTTP 全链路 upload→derive→export(vray)→export(corona) 通过，Corona 脚本中 V-Ray 专有属性残留为 0",
+    ],
     "0.8.4": [
         "【资源泄漏根因1】Edge 进程树未回收：ui_check / ui_solid_check / capture_presets 收尾只对 Edge 主进程 terminate，GPU/renderer/crashpad/utility 等子进程继续存活并锁住 --user-data-dir。新增 scripts/_edge_util.py（kill_tree / kill_proc / kill_by_profile / safe_rmtree / reap_stale_profiles），收尾一律按进程树强杀，退出后占用 profile 的进程数实测为 0",
         "【资源泄漏根因2】兜底 profile 无限增殖：CDP 连接失败时旧逻辑新建 edge_profile_<时间戳> 重跑且从不回收，每次失败永久多约 76MB（实测累积 13 份、933MB）。改为启动前先清场（杀掉占用同一 profile 的残留实例）再复用固定 profile，兜底分支仅在清场后仍失败时启用，且登记为一次性 profile 并在 finally 回收（MF_EDGE_EPHEMERAL=1 跨进程传递标记）",

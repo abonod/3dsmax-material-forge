@@ -22,13 +22,21 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import export_guard
+from . import export_guard, ondevice_registry
 
 # 3ds Max 插件目录候选（Chaos 官方安装位置）
 PLUGIN_ROOTS = [
     r"C:\ProgramData\Autodesk\ApplicationPlugins",
     r"C:\Program Files\Chaos Group\V-Ray",
     r"C:\Program Files\Chaos\V-Ray",
+]
+
+# Corona 的安装位置（渲染器本体不是 V-Ray 那条 Chaos 插件链目录）
+CORONA_ROOTS = [
+    r"C:\ProgramData\Autodesk\ApplicationPlugins",
+    r"C:\Program Files\Corona",
+    r"C:\Program Files\Chaos\Corona",
+    r"C:\Program Files\Chaos Group\Corona",
 ]
 
 # 报告级别
@@ -38,6 +46,54 @@ OK, WARN, ERROR = "ok", "warn", "error"
 # ------------------------------------------------------------------
 # 环境自检
 # ------------------------------------------------------------------
+def probe_corona() -> dict:
+    """探测本机 Corona 安装情况（best-effort，只报能找到的事实）
+
+    与 probe_vray 同一口径：扫描标准目录 + 读 PackageContents.xml 的 AppVersion。
+    Corona 目录名常见形如 Corona_10、Corona Renderer 12、Corona 9 for 3ds Max 2024，
+    版本号优先取 XML，其次才从目录名里抽数字。
+    """
+    dirs: list[str] = []
+    for root in CORONA_ROOTS:
+        if not os.path.isdir(root):
+            continue
+        try:
+            for name in sorted(os.listdir(root)):
+                if "corona" not in name.lower():
+                    continue
+                dirs.append(os.path.join(root, name))
+        except OSError:
+            continue
+
+    version = ""
+    for d in dirs:
+        pkg = os.path.join(d, "PackageContents.xml")
+        if not os.path.isfile(pkg):
+            continue
+        try:
+            text = Path(pkg).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        m = re.search(r'AppVersion\s*=\s*"([\d.]+)"', text)
+        if m:
+            version = m.group(1)
+            break
+    if not version:
+        for d in dirs:
+            m = re.search(r"corona[\s_-]*(?:renderer[\s_-]*)?(\d+(?:\.\d+)?)", Path(d).name.lower())
+            if m:
+                version = m.group(1)
+                break
+
+    max_year = ""
+    for d in dirs:
+        m = re.search(r"(20\d{2})", Path(d).name)
+        if m:
+            max_year = m.group(1)
+
+    return {"installed": bool(dirs), "dirs": dirs, "version": version, "max_year": max_year}
+
+
 def probe_vray() -> dict:
     """探测本机 V-Ray 安装情况（best-effort，只报能找到的事实）"""
     dirs: list[str] = []
@@ -218,6 +274,27 @@ def check_script(script: str) -> list[dict]:
             "detail": f"含 GBK 无法表示的字符「{bad}」，Max 解析会出乱码",
         })
 
+    # 8) 跨行运算符续写（真机事故 2026-11-20：探针脚本把长字符串折成两行，
+    #    次行以 + 开头，Max 解析直接报「位于 +，需要 <因子>」，整个脚本跑不动。
+    #    MAXScript 没有隐式续行，任何行首二元运算符都是语法错误。
+    #    只判 "+" 与 and/or：* 会被注释框线 "****" 误伤，- 会被 "--" 注释误伤。）
+    lead_ops = []
+    for ln, line in enumerate(masked.split("\n"), start=1):
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("--"):
+            continue
+        if re.match(r"^(\+|\band\b|\bor\b)\s", stripped):
+            lead_ops.append((ln, stripped[:40]))
+    if lead_ops:
+        sample = "; ".join(f"第 {ln} 行「{txt}」" for ln, txt in lead_ops[:3])
+        items.append({
+            "level": ERROR, "title": "跨行运算符续写",
+            "detail": f"发现 {len(lead_ops)} 处行首二元运算符（{sample}），"
+                      f"MAXScript 无隐式续行，真机 fileIn 会报语法错误",
+        })
+    else:
+        items.append({"level": OK, "title": "无跨行运算符", "detail": "未出现行首 + 续行"})
+
     return items
 
 
@@ -263,7 +340,7 @@ def _strip_comments(src: str) -> str:
     return "".join(out)
 
 
-def check_template_structure(script: str) -> list[dict]:
+def check_template_structure(script: str, renderer: str = "vray") -> list[dict]:
     """检查脚本里几处「踩过坑的写法」是否还在
 
     每一条都对应一次真实故障或一次已修的回归点：
@@ -279,8 +356,13 @@ def check_template_structure(script: str) -> list[dict]:
     items: list[dict] = []
     code = _strip_comments(script)   # 注释里本身在解释这些坑，必须剥离后再判
 
-    # 1) 本地化类名：VRayNormalMap / VRayDirt 必须走候选链
-    for cls, label in (("VRayNormalMap", "法线贴图节点"), ("VRayDirt", "污垢(AO)节点")):
+    # 1) 本地化类名必须走候选链。中文版 V-Ray 的 VRayNormalMap/VRayDirt 会本地化成
+    #    VRay_法线贴图 / VRay_污垢；Corona 侧同理（CoronaNormal / CoronaAO 在不同大版本里
+    #    注册名有差异），所以两套渲染器都按「候选链是否存在」判，而不是放行字面量。
+    cls_pairs = (("CoronaNormal", "法线贴图节点"), ("CoronaAO", "污垢(AO)节点")) \
+        if str(renderer).lower() == "corona" else \
+        (("VRayNormalMap", "法线贴图节点"), ("VRayDirt", "污垢(AO)节点"))
+    for cls, label in cls_pairs:
         has_chain = re.search(rf'#\(\s*"{cls}"', code) is not None
         direct = re.search(rf'(?<![\w#"]){cls}\s*\(', code) is not None
         if has_chain:
@@ -291,14 +373,34 @@ def check_template_structure(script: str) -> list[dict]:
                           "detail": f'直接调用字面量 {cls}()，中文版 V-Ray 下通常为 undefined，'
                                     f"会静默降级（应改为候选链探测）"})
 
-    # 2) 已移除的材质库接口（2024 里这三个都已不存在，出现即运行报错）
-    dead = [n for n in ("newMaterialLibrary", "loadTempMaterialLibrary",
-                        "saveTempMaterialLibrary") if re.search(rf"\b{n}\b", code)]
-    if dead:
+    # 2) 材质库接口：区分"死透的接口"与"旧版专用但需要降级路径"的接口
+    #    newMaterialLibrary / loadTempMaterialLibrary 在 2024 已移除且本工具不再使用，
+    #    出现即说明是老代码残留 —— 直接 ERROR。
+    #    saveTempMaterialLibrary 是 2021 及更早唯一的保存接口：为了跨版本必须保留，
+    #    但只允许作为 saveMaterialLibrary 失败后的第二级降级，且顺序不能反
+    #    （先旧后新会让 2024 在第一级就抛错，日志会误标降级）。
+    hard_dead = [n for n in ("newMaterialLibrary", "loadTempMaterialLibrary")
+                 if re.search(rf"\b{n}\b", code)]
+    has_legacy_save = re.search(r"\bsaveTempMaterialLibrary\b", code) is not None
+    has_modern_save = re.search(r"\bsaveMaterialLibrary\b", code) is not None
+    if hard_dead:
         items.append({"level": ERROR, "title": "材质库接口",
-                      "detail": "调用了 3ds Max 2024 已移除的接口：" + ", ".join(dead)
+                      "detail": "调用了 3ds Max 2024 已移除的接口：" + ", ".join(hard_dead)
                                 + "（运行必报错）"})
-    elif re.search(r"\bloadMaterialLibrary\b", code) or re.search(r"\bsaveMaterialLibrary\b", code):
+    elif has_legacy_save and not has_modern_save:
+        items.append({"level": ERROR, "title": "材质库接口",
+                      "detail": "只调用了 saveTempMaterialLibrary：2022+ 已移除，"
+                                "应改为先 saveMaterialLibrary、失败再降级旧接口"})
+    elif has_legacy_save and has_modern_save:
+        if code.index("saveMaterialLibrary") < code.index("saveTempMaterialLibrary"):
+            items.append({"level": OK, "title": "材质库接口",
+                          "detail": "新旧双路：先 saveMaterialLibrary，失败降级 "
+                                    "saveTempMaterialLibrary（兼容 2021 及更早）"})
+        else:
+            items.append({"level": ERROR, "title": "材质库接口",
+                          "detail": "降级顺序反了：saveTempMaterialLibrary 出现在 "
+                                    "saveMaterialLibrary 之前，2024 会在第一级抛错"})
+    elif has_modern_save:
         if "[SKIP]" in code:
             items.append({"level": OK, "title": "材质库接口",
                           "detail": "已改为能力探测，无库时输出 [SKIP] 不计失败"})
@@ -322,6 +424,17 @@ def check_template_structure(script: str) -> list[dict]:
     elif re.search(r"@?\"[A-Za-z]:[\\/].+\.(?:png|jpe?g|tga|exr|hdr|bmp|tif{1,2})\"", code, re.I):
         items.append({"level": WARN, "title": "贴图路径策略",
                       "detail": "脚本只含绝对路径贴图，搬动导出目录会丢图"})
+
+    # 5) 真机类名对照（解决「字面量存在就判 OK」的假通过）
+    #    前四条检查的判据都是「模板里有没有这段字符串」，天然存在假通过：
+    #    #("CoronaNormal") 字面量在，检查就绿，可真机注册名是「Corona法线」。
+    #    这一条改用 core/ondevice_registry.json（真机探针实测枚举）作唯一真源，
+    #    判据变成「这个名字真机上到底存不存在」。
+    try:
+        items.extend(ondevice_registry.check_script(code, renderer))
+    except Exception as e:                                    # 登记表缺失不能拖垮预检
+        items.append({"level": WARN, "title": "真机类名对照",
+                      "detail": f"真机登记表不可用（{e}），本次跳过对照，导出后需真机复核"})
 
     return items
 
@@ -372,6 +485,7 @@ def run(
     values: dict | None = None,
     preview_only: bool = False,
     has_source: bool = True,
+    renderer: str = "vray",
 ) -> dict:
     """执行全部预检，返回报告
 
@@ -380,6 +494,7 @@ def run(
         script        : 已生成的 .ms 全文（内存态，不落盘也能校验）
         tex_paths     : {"albedo": 绝对路径, ...} 实际要写入脚本的贴图
         has_source    : 是否有上传源图（纯色模式没源图，不要求 opacity 通道）
+        renderer      : vray / corona，决定环境段探测哪个渲染器、脚本段按哪种材质自检
     """
     items: list[dict] = []
     values = values or {}
@@ -444,7 +559,7 @@ def run(
     items.extend(check_script(script))
 
     # ---- 3b. 模板结构预检（本地化类名 / 已移除接口 / 槽位判空 / 路径策略）----
-    items.extend(check_template_structure(script))
+    items.extend(check_template_structure(script, renderer))
 
     # ---- 3c. 参数取值域 ----
     items.extend(check_value_domain(values))
@@ -456,18 +571,31 @@ def run(
         "detail": f"启用开关 {len(enabled_bools)} 个 · 参数项 {len(values)} 个",
     })
 
-    # ---- 5. 环境 ----
-    env = probe_vray()
-    if env["installed"]:
-        ver = f" v{env['version']}" if env.get("version") else ""
-        items.append({"level": OK, "title": "V-Ray 环境",
-                      "detail": f"检测到插件目录{ver}（{Path(env['dirs'][-1]).name}）"})
+    # ---- 5. 环境（按目标渲染器探测；另一家只作为备用信息）----
+    is_corona = str(renderer).lower() == "corona"
+    vray_env = probe_vray()
+    corona_env = probe_corona()
+    target_name = "Corona" if is_corona else "V-Ray"
+    target_env = corona_env if is_corona else vray_env
+    if target_env["installed"]:
+        ver = f" v{target_env['version']}" if target_env.get("version") else ""
+        items.append({"level": OK, "title": f"{target_name} 环境",
+                      "detail": f"检测到插件目录{ver}（{Path(target_env['dirs'][-1]).name}）"})
     else:
         items.append({
-            "level": WARN, "title": "V-Ray 环境",
-            "detail": "未在标准目录检测到 V-Ray。脚本会自带降级逻辑（PhysicalMaterial），"
-                      "但效果与 VRayMtl 不等价；若已装在非标准路径可忽略此项",
+            "level": WARN, "title": f"{target_name} 环境",
+            "detail": f"未在标准目录检测到 {target_name}。脚本自带降级逻辑（Corona→PhysicalMaterial / "
+                      f"V-Ray→PhysicalMaterial），但效果与原材质不等价；若已装在非标准路径可忽略此项",
         })
+    alt_name, alt_env = ("V-Ray", vray_env) if is_corona else ("Corona", corona_env)
+    if alt_env["installed"]:
+        items.append({"level": OK, "title": f"{alt_name}（备用）",
+                      "detail": f"本机也装有 {alt_name}，但当前导出目标是 {target_name}，不会用到它"})
+    # env 结构对前端保持向后兼容：installed/version 始终指「本次目标渲染器」
+    env = dict(target_env)
+    env["target"] = "corona" if is_corona else "vray"
+    env["vray"] = vray_env
+    env["corona"] = corona_env
 
     blocking = [i for i in items if i["level"] == ERROR]
     warnings = [i for i in items if i["level"] == WARN]

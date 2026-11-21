@@ -279,7 +279,11 @@ def check_artifact(spec: dict) -> dict:
     if preset:
         values.update(snaps[preset])
     values.update(spec.get("overrides") or {})
-    script = ms_exporter.build_mscript("MF_eval", params.resolve_vray(values), {}, "")
+    # 产物断言也要能跑 Corona：否则 Corona 侧回归只能靠肉眼，
+    # 而这一层正是「V-Ray 专有开关泄漏到 CoronaPhysicalMtl」最容易复发的地方。
+    renderer = str(spec.get("renderer") or "vray").lower()
+    props = params.resolve_corona(values) if renderer == "corona" else params.resolve_vray(values)
+    script = ms_exporter.build_mscript("MF_eval", props, {}, "", renderer=renderer)
 
     problems: list[str] = []
     for s in spec.get("contains") or []:

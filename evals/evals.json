@@ -846,6 +846,174 @@
           ]
         }
       }
+    },
+    {
+      "id": 18,
+      "prompt": "这套玻璃材质能出个 Corona 版吗？我同事用的是 Corona，MAXScript 里别给我写 VRayMtl 的属性",
+      "expected_output": "以 renderer=corona 导出，生成 Corona 物理材质（真机确认中文版类名本地化为「_Corona物理材质」，脚本按 英文名→中文本地化名→属性特征扫描 三级候选链创建，缺类时降级 CoronaLegacyMtl → PhysicalMaterial）；粗糙度按 baseRoughness 写入（由 glossiness 取反向），透明度用 refractionAmount（折射透射，不是 opacityLevel 的 alpha 遮挡），色散写 dispersion 数值并同时置 dispersionEnable=true，不写 refraction_dispersion_on 这类 V-Ray 使能开关；未搬过去的语义键汇总成一行 mfDropped 提示；给出 .ms 路径与 Run Script 指引",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "coronaphysicalmtl",
+              "corona"
+            ],
+            "hint": "目标材质类必须是 Corona 侧"
+          },
+          {
+            "any": [
+              "baseroughness",
+              "粗糙"
+            ],
+            "hint": "粗糙度落到 baseRoughness"
+          },
+          {
+            "any": [
+              "refractionamount",
+              "折射"
+            ],
+            "hint": "折射率走 refractIor"
+          },
+          {
+            "any": [
+              ".ms"
+            ],
+            "hint": "交付 .ms 路径"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "vraymtl 的 reflection_glossiness",
+              "直接沿用 vraymtl 属性"
+            ],
+            "hint": "不得把 VRayMtl 属性名搬给 Corona"
+          }
+        ],
+        "artifact": {
+          "preset": "glass",
+          "renderer": "corona",
+          "contains": [
+            "CoronaPhysicalMtl",
+            "#(\"baseRoughness\"",
+            "#(\"refractionAmount\""
+          ],
+          "not_contains": [
+            "refraction_dispersion_on",
+            "thinFilm_on",
+            "brdf_useRoughness"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 19,
+      "prompt": "拉丝铝的 Corona 版看着发白发灰，金属的色没了，怎么回事",
+      "expected_output": "指出根因：V-Ray 把金属色存在 reflectionColor，而 CoronaPhysicalMtl 只有 baseColor，不回灌就会得到白金属；确认 metalness≥0.5 或金属模式下 baseColor 取 reflectionColor 的分量（alu_brushed≈0.847/0.854/0.865），并说明非金属预设下 reflectionColor 仍会进 mfDropped 属正常",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "reflectioncolor",
+              "反射色"
+            ],
+            "hint": "要点明 V-Ray 侧金属色存在 reflectionColor"
+          },
+          {
+            "any": [
+              "basecolor"
+            ],
+            "hint": "Corona 只有 baseColor 承接"
+          },
+          {
+            "any": [
+              "metalness",
+              "金属"
+            ],
+            "hint": "说明触发条件是金属模式/金属度"
+          },
+          {
+            "any": [
+              "mfdropped",
+              "丢弃",
+              "跳过"
+            ],
+            "hint": "说明非金属下仍会出现在丢弃清单"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "金属模式不生效是显存问题",
+              "无法在 corona 表现金属"
+            ],
+            "hint": "不得归因到无关硬件或宣称做不到"
+          }
+        ],
+        "artifact": {
+          "preset": "alu_brushed",
+          "renderer": "corona",
+          "contains": [
+            "#(\"baseColor\"",
+            "#(\"metalnessMode\""
+          ],
+          "not_contains": [
+            "refraction_dispersion_on"
+          ],
+          "verify": true
+        },
+        "threshold": 0.8
+      }
+    },
+    {
+      "id": 20,
+      "prompt": "同一个材质我要 V-Ray 和 Corona 各出一份，放一起会不会打架",
+      "expected_output": "说明两套脚本按渲染器分目录隔离（Corona 目录名带 _corona 后缀，且名字已含该后缀时不会重复拼成 xxx_corona_corona），贴图各带一份进各自 textures/；切换渲染器后参数面板与导出结果文案、导出前自检的环境探测同步按目标渲染器执行，本机未装 Corona 只给 WARN 不阻断",
+      "files": [],
+      "machine": {
+        "must": [
+          {
+            "any": [
+              "_corona"
+            ],
+            "hint": "说明目录按渲染器隔离"
+          },
+          {
+            "any": [
+              "textures"
+            ],
+            "hint": "各自带 textures/"
+          },
+          {
+            "any": [
+              "warn",
+              "不阻断",
+              "降级"
+            ],
+            "hint": "未装 Corona 只 WARN 或降级，不阻断"
+          },
+          {
+            "any": [
+              "vray",
+              "v-ray"
+            ],
+            "hint": "两套都能出"
+          }
+        ],
+        "must_not": [
+          {
+            "any": [
+              "会互相覆盖"
+            ],
+            "hint": "不得说仍会互相覆盖"
+          }
+        ],
+        "threshold": 0.8
+      }
     }
   ]
 }

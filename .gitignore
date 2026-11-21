@@ -37,3 +37,10 @@ desktop.ini
 .env.*
 *.local.json
 secrets.json
+
+# ===== 反例：证据目录的真机日志必须入库 =====
+# *.log 是给运行期调试残留准备的排除项；但 docs/evidence/*.log 是 core/compat.py
+# 里 verified.evidence 直接指向的取证本体。全局排除等于源码仓库无法自证"支持某版本"，
+# 和打包侧 EXCLUDE_SUFFIX 排除 .log 是同一类静默断链，必须显式放行。
+!docs/evidence/
+!docs/evidence/*.log

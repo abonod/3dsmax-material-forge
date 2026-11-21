@@ -1,0 +1,94 @@
+3dsmax-material-forge 0.10.0 —— 5 项缺口真机验证收尾记录
+生成时间：2026-11-20
+主机：3ds Max 2024 中文版 (26000) / Corona 12 / V-Ray 6.20.06
+探针日志：temp/probeF.log（Modifier 枚举）、temp/probeG.log（逐份材质回读，452 行）
+
+============================================================
+一、5 项清单结论
+============================================================
+
+[1] 补 Corona法线 候选 + 重跑法线验证 —— 完成
+    真机名：Corona法线（ConronaNormal / CoronaNormalMap / Corona_Normal 均 UndefinedClass）
+    内层输入槽：normalMap（texmapNormal 不存在）
+    probeG 回读：alu_brushed_corona 的 baseBumpTexmap 类为 Corona法线，
+                 inner.normalMap 指向 Bitmaptexture|alu_normal.png
+    已写入 registry：normal_map_class / normal_map_input_slot / normal_map_props
+
+[2] 枚举 Modifier 确认真实置换修改器名 —— 完成
+    Modifier.classes 共 162 类，逐类实例化验证：
+      Corona置换修改器      -> EVAL OK
+      CoronaDisplacementMod -> EVAL UndefinedClass（此前假设的英文名是错的）
+    tpl_common 置换候选链改为三元：置换 → Displace 兜底
+    已写入 registry：displacement_modifier / displacement_modifier_rejected / displacement_props
+
+[3] 固化 registry 解决假通过 —— 完成
+    ondevice_registry.py 增加 _strip_comments（去注释后判定），
+    避免「注释里写着旧类名」被当成已使用真机名。
+    check_script 判定四档：真机名命中 OK / 命中已证伪名字 ERROR /
+    涉及该能力但未命中真机名 WARN / 不涉及不产条目。
+    registry_check 现为 PASS，负向用例（故意交叉写错）实测判 error。
+
+[4] 贴图链路整套真机跑 —— 完成
+    probeG 修掉 probeE 的缺陷（medit 24 槽互相覆盖，只能读到最后一槽）：
+    每份材质先清空槽、再 fileIn、再按材质名 findMtlByName 回读。
+    6 份材质（alu_brushed / marble / glass × corona / vray）全部 0 error / 0 FAIL。
+
+[5] 色散量纲拆参数决策 —— 完成（决策有实测支撑，非推断）
+    真机默认值：Corona dispersion = 40.0 + dispersionEnable = false
+                VRayMtl refraction_dispersion = 50.0 + refraction_dispersion_on = false
+    量程实测（probeF）：写 0 / 0.02 / 0.2 / 1 / 5 / 40 / 100 / 1000 全部原值回读，无钳制
+    结论：两端是同一无量纲 0~100 标度，此前「V-Ray 0~1、Corona 0~100 需换算」的假设错误，取消换算。
+    参数拆为两件：dispersion_on（开关）+ dispersion（0~100 强度）。
+    开关关闭时一个色散属性都不下发，保留渲染器自己的默认值；
+    此前 dispersion=5.0 无条件下发，等于把所有材质的色散从 40/50 改成 5。
+
+============================================================
+二、贴图链路真机回读（probeG）
+============================================================
+
+项                    Corona                          V-Ray
+--------------------  ------------------------------  ----------------------------
+漫反射槽              baseTexmap                      texmap_diffuse
+粗糙度槽              baseRoughnessTexmap             texmap_roughness
+凹凸槽                baseBumpTexmap                  texmap_bump
+法线包装器            Corona法线                      VRay_法线贴图
+包装器内层槽          normalMap                       normal_map
+强度写在外层          baseBumpMapAmount 0.65 / 0.4    texmap_bump_multiplier 0.65 / 0.4
+包装器 multiplier     1.0（恒定）                     1.0（normal_map_multiplier）
+
+分层强度铁律（已写入 ondevice_registry.json 的 texmap_chain_policy）：
+  强度只归外层槽位，内层包装器 multiplier 保持 1.0。
+  两层都写会让降低后的强度按平方衰减，且回读只能看到一个值、无法判断是谁生效。
+
+============================================================
+三、静态自检结果
+============================================================
+
+正向：16 份预设 × 2 渲染器 = 192 条真机名断言，全部 ok，0 warn / 0 error。
+负向：把 Corona 侧故意写成 texmap_bump / texmap_bump_multiplier、
+      把 V-Ray 侧故意写成 baseBumpTexmap / baseBumpMapAmount，均判 error（不再退化成 warn）。
+新增断言：凹凸槽位、凹凸强度属性两条，对端名字列入已证伪名单，交叉写错直接 error。
+
+run_all_checks 6 项全 PASS：
+  evals 断言+产物回归 / 导出隔离·自检·生命周期 / 注册表文档一致 /
+  贴图元信息与遮罩 20/20 / 主界面结构 31/31 / 纯色模式像素 18/18
+
+============================================================
+四、顺带修掉的缺陷
+============================================================
+
+references/params-registry.md 未随色散拆参数更新：
+  缺 dispersion_on 行 -> registry_check FAIL；表面组 26 应为 27、合计 61 应为 62、
+  折叠区 56 应为 57、进阶档 61 应为 62。
+已全部补齐，registry_check 转 PASS。
+
+============================================================
+五、剩余风险 / 未覆盖
+============================================================
+
+1. 法线强度只验证了「写外层生效」这一条路径，未做「同一材质同时写内外两层」的
+   视觉差异实测（结论来自属性回读与平方衰减推算）。
+2. V-Ray 法线包装器除 normal_map 外的其它属性仍未枚举，registry 中已标注勿臆造。
+3. Corona 无薄膜层（无任何 thinFilm* 属性），薄膜两项在 Corona 侧为共同缺口，
+   已在代码注释与 SKILL.md 标注，属渲染器能力缺失而非实现缺陷。
+4. 色散上限未做极端值视觉验证（1000 回读正常，但渲染火彩是否失真未目视）。

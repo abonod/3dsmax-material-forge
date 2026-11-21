@@ -1,0 +1,183 @@
+{
+  "_doc": "真机类名与属性名登记表（唯一真源）。由真机探针实测产出，静态自检必须对照本表而不是对照模板里的字面量，否则会「字面量存在就判 OK」的假通过。",
+  "schema_version": 1,
+  "generated": "2026-11-20",
+  "probe_evidence": [
+    "temp/ondevice/probe.log（第一轮：类枚举 + 贴图链路 fileIn 回读）",
+    "temp/ondevice/probe2.log（第二轮：Corona法线 属性 / Corona置换修改器 属性 / V-Ray 色散真名）",
+    "temp/probeF.log（第三轮：Modifier 162 类枚举，Corona置换修改器 可实例化 / CoronaDisplacementMod UndefinedClass；色散 0/0.02/0.2/1/5/40/100/1000 原值回读无钳制）",
+    "temp/probeG.log（第四轮：6 份材质逐份 fileIn 后按名回读，贴图链路 full chain 取证 + 色散默认值。Corona 侧 baseBumpTexmap=Corona法线 / inner.normalMap=normal 图 / strength.multiplier=1.0；V-Ray 侧 texmap_bump=VRay_法线贴图 / inner.normal_map=normal 图 / strength.normal_map_multiplier=1.0。强度只写外层槽 baseBumpMapAmount(0.65/0.4) 与 texmap_bump_multiplier(0.65/0.4)，内层 multiplier 恒 1.0，无双写衰减。色散默认：Corona dispersion=40.0 + dispersionEnable=false；VRayMtl refraction_dispersion=50.0 + refraction_dispersion_on=false；glass 两份写入 5.0 且使能开关为 true 后原值回读）"
+  ],
+  "texmap_chain_policy": {
+    "_doc": "法线/凹凸链路的分层强度策略，由 probeG.log 真机回读证实",
+    "strength_owner": "outer_slot",
+    "strength_owner_note": "强度一律写材质外层槽位的 amount/multiplier，内层包装器(normal map wrapper)的 multiplier 保持 1.0。若两层都写，降低强度会被平方衰减，且回读只能看到一个值无法判断是谁生效",
+    "wrapper_multiplier_expected": 1.0,
+    "normal_only_policy": "只挂法线（wrapper 包 normal 图），凹凸留空；不用 height/bump 图兼职法线"
+  },
+  "host": {
+    "max": "3ds Max 2024 中文版 (26000)",
+    "corona": "Corona 12",
+    "vray": "V-Ray 6.20.06 for 3ds Max 2024"
+  },
+  "renderers": {
+    "corona": {
+      "material_class": "_Corona物理材质",
+      "legacy_material_class": "Corona传统材质",
+      "material_classes": [
+        "_Corona物理材质",
+        "Corona传统材质",
+        "Corona毛发材质",
+        "Corona体积材质",
+        "Corona阴影捕捉",
+        "Corona灯光材质",
+        "Corona分层材质",
+        "Corona光线切换",
+        "CoronaPortalMtl",
+        "Corona扫描材质",
+        "Corona切片材质",
+        "Corona皮肤材质",
+        "Corona选择材质"
+      ],
+      "material_prop_count": 148,
+      "normal_map_class": "Corona法线",
+      "normal_map_class_rejected": [
+        "CoronaNormal",
+        "CoronaNormalMap",
+        "Corona_Normal",
+        "_CoronaNormal"
+      ],
+      "normal_map_input_slot": "normalMap",
+      "normal_map_bump_slot": "additionalBump",
+      "normal_map_bump_on_prop": "additionalBumpOn",
+      "normal_map_strength_prop": "multiplier",
+      "normal_map_strength_verified_default": 1.0,
+      "bump_texmap_slot": "baseBumpTexmap",
+      "bump_amount_prop": "baseBumpMapAmount",
+      "diffuse_texmap_slot": "baseTexmap",
+      "roughness_texmap_slot": "baseRoughnessTexmap",
+      "texmap_chain_verified": "probeG 2026-11-20：baseTexmap/baseRoughnessTexmap 挂 Bitmaptexture、baseBumpTexmap 挂 Corona法线，内层 normalMap 正确绑定同名 normal 图，strength.multiplier=1.0，强度由 baseBumpMapAmount 承担",
+      "normal_map_props": [
+        "multiplier",
+        "normalMap",
+        "addGamma",
+        "flipred",
+        "flipgreen",
+        "swapRedGreen",
+        "gammaWarning",
+        "additionalBump",
+        "additionalBumpOn",
+        "additionalBumpStrength"
+      ],
+      "displacement_modifier": "Corona置换修改器",
+      "displacement_modifier_rejected": [
+        "CoronaDisplacementMod"
+      ],
+      "displacement_props": [
+        "texmap",
+        "waterLevel",
+        "levelMin",
+        "levelMax",
+        "useWaterLevel",
+        "mapSource",
+        "overrideSize",
+        "sizeType",
+        "screenSize",
+        "worldSize"
+      ],
+      "displacement_has_amount": false,
+      "displacement_has_subdiv": false,
+      "displacement_height_prop": "worldSize",
+      "displacement_size_switch": "overrideSize",
+      "displacement_size_type_prop": "sizeType",
+      "dispersion_prop": "dispersion",
+      "dispersion_on_prop": "dispersionEnable",
+      "dispersion_default": 40.0,
+      "dispersion_clamped": false,
+      "mtl_texmap_slots": [
+        "baseTexmap",
+        "baseRoughnessTexmap",
+        "baseAnisotropyTexmap",
+        "baseAnisoRotationTexmap",
+        "baseIorTexmap",
+        "clearcoatRoughnessTexmap",
+        "sheenRoughnessTexmap",
+        "baseBumpTexmap",
+        "clearcoatBumpTexmap",
+        "baseTailTexmap"
+      ],
+      "texture_classes": [
+        "Corona用户属性",
+        "Corona色调映射控件",
+        "Corona凹凸转换器",
+        "Corona映射随机发生器",
+        "Corona光线切换textureMap",
+        "CoronaAO",
+        "Corona法线",
+        "Corona平铺贴图",
+        "Corona曲率",
+        "Corona天空",
+        "Corona线框",
+        "Corona颜色",
+        "Corona混合",
+        "Corona色彩校正",
+        "Corona位图",
+        "Corona双面",
+        "Corona数据",
+        "Corona距离",
+        "Corona多维纹理",
+        "Corona圆边",
+        "Corona选择",
+        "Corona边缘贴图",
+        "Corona三平面"
+      ],
+      "modifier_classes": [
+        "Corona图案修改器",
+        "Corona毛发修改器",
+        "Corona相机修改器",
+        "Corona置换修改器",
+        "CoronaFumeFXMod",
+        "VRayCoronaScatterMod"
+      ]
+    },
+    "vray": {
+      "material_class": "VRayMtl",
+      "normal_map_class_candidates": [
+        "VRay_法线贴图",
+        "VRayNormalMap"
+      ],
+      "normal_map_class": "VRay_法线贴图",
+      "normal_map_input_slot": "normal_map",
+      "normal_map_input_slot_rejected": [
+        "normal"
+      ],
+      "normal_map_props": [
+        "normal_map",
+        "bump_map",
+        "bump_map_on",
+        "normal_map_multiplier",
+        "bump_map_multiplier"
+      ],
+      "normal_map_props_note": "仅 normal_map 经真机回读证实（probeE 2026-11-19）；其余属性名未枚举，勿臆造",
+      "normal_map_bump_slot": "bump_map",
+      "normal_map_strength_prop": "normal_map_multiplier",
+      "normal_map_strength_verified_default": 1.0,
+      "diffuse_texmap_slot": "texmap_diffuse",
+      "roughness_texmap_slot": "texmap_roughness",
+      "bump_texmap_slot": "texmap_bump",
+      "bump_multiplier_prop": "texmap_bump_multiplier",
+      "texmap_chain_verified": "visual P4 2026-11-20：VRayMtl.texmap_bump 挂 VRay_法线贴图，内层 normal_map=normal.png / bump_map=height.png，倍率属性真名 bump_map_multiplier 与 normal_map_multiplier（下划线），旧候选 bump_multiplier 全部落空导致凹凸强度未下发、画面平滑",
+      "displacement_modifier": "VRayDisplacementMod",
+      "displacement_has_amount": true,
+      "displacement_has_subdiv": true,
+      "dispersion_prop": "refraction_dispersion",
+      "dispersion_prop_rejected": [
+        "dispersion"
+      ],
+      "dispersion_on_prop": "refraction_dispersion_on",
+      "dispersion_default": 50.0,
+      "dispersion_clamped": false,
+      "bump_amount_prop": "bump_map_multiplier"
+    }
+  }
+}

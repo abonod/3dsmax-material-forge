@@ -30,6 +30,18 @@ CHECKS = [
     ("export_guard",  "导出隔离/自检/生命周期", ["scripts/export_guard_check.py"], False),
     ("registry",      "注册表文档一致",        ["scripts/registry_check.py"],     False),
     ("proc_mask",     "贴图元信息与遮罩",      ["scripts/proc_mask_check.py"],    False),
+    # P1 机制性阻断：判据器自测 + 探针生成冒烟。放在这里是为了保证「防假通过的机制」
+    # 本身每次交付前都被验证一遍 —— 机制失效比功能失效更危险，因为它会静默放行错误。
+    ("probe_verdict", "真机探针判据器自测",    ["scripts/verify_probe_log.py", "--selftest"], False),
+    ("probe_gen",     "探针生成冒烟",          ["scripts/probe_gen_check.py"],    False),
+    # P3/P5/P6/P7：兼容矩阵一致性 + 中英类名别名覆盖 + 版本等级诚实性。
+    # 这项守的是"文档别变成营销文案"——标 verified 的版本必须有本机真机证据。
+    ("compat",        "兼容矩阵与语言覆盖",    ["scripts/compat_check.py"],       False),
+    # P4：目视取证生成器冒烟 + 结构校验。visual_gen_check 在临时目录里跑生成器，
+    # 不往 out/ 写任何东西 —— 检查项必须无副作用，否则会把产物目录搞脏。
+    ("visual_check",  "目视取证结构校验",      ["scripts/visual_gen_check.py"],   False),
+    ("p_series",      "P0-P7 落地审计",        ["scripts/p_series_audit.py"],     False),
+    ("p_series_neg",  "P0-P7 审计反例自测",     ["scripts/p_series_audit.py", "--selftest"], False),
     ("ui",            "主界面结构",            ["scripts/ui_check.py"],          True),
     ("ui_solid",      "纯色模式像素",          ["scripts/ui_solid_check.py"],    True),
 ]

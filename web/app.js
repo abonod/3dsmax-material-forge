@@ -25,6 +25,8 @@ const S = {
   advancedOpen: false,
   // 最近一次自检报告（导出拦截 / 手动自检都会刷新）
   lastReport: null,
+  // 目标渲染器：vray / corona。只影响导出脚本形态与参数翻译，预览球两种都能看
+  renderer: "vray",
 };
 
 const ROUGH_MAP = { matte: 0.85, semi: 0.55, glossy: 0.28, mirror: 0.06 };
@@ -1198,6 +1200,7 @@ function payloadBody() {
   return {
     job_id: S.jobId,
     material_name: $("matName").value,
+    renderer: S.renderer,
     values: { ...S.values, tex_enabled: { ...S.texOn } },
   };
 }
@@ -1235,6 +1238,30 @@ $("btnExport").addEventListener("click", async () => {
   }
 });
 
+/* 渲染器切换：只改导出目标，不重烤贴图（两种渲染器共用同一套 PBR 通道） */
+function setRenderer(r) {
+  S.renderer = ["vray", "corona"].includes(r) ? r : "vray";
+  const seg = $("rendererSeg");
+  if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.renderer === S.renderer));
+  const isCr = S.renderer === "corona";
+  const title = $("paneTitle");
+  if (title) title.textContent = isCr ? "Corona 参数" : "V-Ray 参数";
+  const hint = $("rendererHint");
+  if (hint) hint.textContent = isCr
+    ? "Corona 出 CoronaPhysicalMtl（未装则自动降级 PhysicalMaterial）；V-Ray 专有项会被跳过并写进日志"
+    : "V-Ray 出 VRayMtl；两套脚本分别落在带后缀的目录里，互不覆盖";
+  // 已导出的旧结果不再代表当前目标，清掉避免误读
+  const box = $("exportResult");
+  if (box) box.innerHTML = "";
+}
+
+$("rendererSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  setRenderer(b.dataset.renderer);
+  toast(S.renderer === "corona" ? "导出目标：Corona" : "导出目标：V-Ray");
+});
+
 $("btnPreflight").addEventListener("click", async () => {
   if (!S.jobId) return;
   const btn = $("btnPreflight");
@@ -1267,7 +1294,8 @@ function reportHtml(r) {
                 `<b>${i.title}</b><span class="rp-detail">${i.detail}</span></li>`)
     .join("");
   const envLine = r.env
-    ? `<div class="rp-env">V-Ray：${r.env.installed ? "已安装 " + (r.env.version || "") + "（Max " + (r.env.max_year || "?") + "）" : "未检测到"} · ` +
+    ? `<div class="rp-env">${r.env.target === "corona" ? "Corona" : "V-Ray"}：` +
+      `${r.env.installed ? "已安装 " + (r.env.version || "") + "（Max " + (r.env.max_year || "?") + "）" : "未检测到"} · ` +
       `当前渲染器：${r.env.current_renderer || "待 Max 运行时探测"}</div>`
     : "";
   return `<div class="report"><div class="rp-head">自检报告 · 阻断 ${r.blocking || 0} · 提示 ${r.warnings || 0}</div>` +
@@ -1304,7 +1332,8 @@ function showExport(d) {
       ? `${d.texture_dir}\\textures\\ · ${d.selfcheck.packed.count} 张`
       : (d.texture_subdir || d.texture_dir || "")) +
     `<div class="tip">用法：3ds Max 菜单 Scripting &rarr; Run Script，选择上面这个 .ms 文件。<br />` +
-    `脚本会自动创建 VRayMtl、连好贴图${d.auto_assign === false ? "" : "，并把材质赋给当前选中的物体"}；` +
+    `脚本会自动创建 ${d.renderer === "corona" ? "CoronaPhysicalMtl" : "VRayMtl"}、连好贴图` +
+    `${d.auto_assign === false ? "" : "，并把材质赋给当前选中的物体"}；` +
     `贴图按「脚本同级 textures/」相对查找，整个文件夹搬走也不丢图。<br />` +
     `材质库：本版 3ds Max 已移除脚本入库接口，材质会落在材质编辑器的空槽里，需要归档请用「材质编辑器 &rarr; 另存材质库」。</div>` +
     selfcheckHtml(d.selfcheck) +

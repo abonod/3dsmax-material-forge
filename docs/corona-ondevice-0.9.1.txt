@@ -1,0 +1,79 @@
+Corona 侧真机核对证据（0.9.1）
+====================================================
+日期      : 2026-11-19
+环境      : 3ds Max 2024（中文版，路径 D:\Autodesk\3ds Max 2024\3dsmax.exe）
+            Corona for 3ds Max 已安装
+方法      : 3dsmax.exe -U MAXScript 包装器 + openLog 落盘（绕开 UI 自动化），
+            随后在 MAXScript Listener 中 fileIn 端到端验证包装器
+说明      : 全程不启动无头 batch、不渲染，仅创建材质并回读属性
+
+一、类名核对结论
+----------------------------------------------------
+CoronaAO                   可实例化，18 项属性
+CoronaPhysicalMtl          直接 execute "CoronaPhysicalMtl()" 失败
+_Corona物理材质            可实例化，148 项属性  <-- 中文版本地化后的真实类名
+CoronaLegacyMtl            英文名创建失败（同源本地化问题）
+CoronaNormal               英文名创建失败，需走候选链
+CoronaDisplacementMod      英文名创建失败，需走候选链
+
+结论：Corona 类名与 V-Ray 一样会被中文版本地化，旧认知「Corona 类名英文注册、无需
+本地化探测」错误。脚本改为 英文名 → 中文本地化名 → 属性特征扫描 三级候选链；
+第 3 级判据：同时具备 baseRoughness 与 metalnessMode 的材质类唯一。
+
+二、物理材质真实属性（关键项，均为 getPropNames 实测存在）
+----------------------------------------------------
+baseColor / baseTexmap / baseTexmapOn / baseTexmapAmount
+baseRoughness / baseIor / baseAnisotropy / baseAnisoRotation
+metalnessMode（整数 0/1） / metalnessTexmap
+refractionAmount / refractionColor / refractionIor?（无）
+dispersion（默认 40.0） / dispersionEnable（布尔）
+opacityLevel（仅 alpha 遮挡）
+clearcoatRoughness / clearcoatAmount
+sheenRoughness / sheenAmount
+sssAmount / sssRadius
+baseBumpTexmap / baseBumpMapAmount
+selfIllumColor / selfIllumLevel
+贴图槽统一为 xxxTexmap / xxxTexmapOn / xxxMapAmount 三段式
+
+不存在（旧候选链中的错误名，已剔除）：
+baseMetalness、refractIOR、refractIor、refractGlossiness、levelOpacity、
+colorSelfIllum、levelSelfIllum、baseSss*、任何 thinFilm*（物理材质无薄膜层）
+
+三、端到端验证（16 份预设中取 metal / glass，真机 fileIn）
+----------------------------------------------------
+[槽 1] name=metal  class=_Corona物理材质
+   baseColor        = (color 255 255 255)
+   baseRoughness    = 0.1
+   baseIor          = 2.2
+   metalnessMode    = 1
+   refractionAmount = 0.0
+   dispersion       = 40.0 / dispersionEnable = false
+   opacityLevel     = 1.0
+
+[槽 2] name=glass  class=_Corona物理材质
+   baseColor        = (color 127.5 127.5 127.5)
+   baseRoughness    = 0.02
+   baseIor          = 1.52
+   metalnessMode    = 0
+   refractionAmount = 1.0
+   dispersion       = 5.0 / dispersionEnable = true
+   opacityLevel     = 1.0
+
+执行统计：metal 6 项写入 0 失败、glass 7 项写入 0 失败，Listener 无报错行。
+唯一提示：当前渲染器不是 Corona（Arnold），需切渲染器才见正确视口效果 —— 预期行为。
+
+四、由此产生的代码修正
+----------------------------------------------------
+1. 透明语义：opacityLevel → refractionAmount（原映射会让玻璃变不透明灰块）
+2. 金属度：连续值 → metalnessMode 二值化（>=0.5 取 1），候选链剔除 baseMetalness
+3. 色散：dispersion 数值 + dispersionEnable=true 两段式写入
+4. 薄膜：物理材质无该层，从透传/丢弃表摘除并在文档标注为已知缺口
+5. 类名：mfCoronaPhysicalMtl / mfCoronaLegacyMtl / mfCoronaMtl 三级候选链 + 特征扫描
+6. evals 18/19 的 artifact 断言与 SKILL.md 映射表同步为真机属性名
+
+五、静态自检
+----------------------------------------------------
+scripts/run_all_checks.py --fast : 4 项全部通过（evals 断言+产物回归 / 导出隔离 / 注册表
+文档一致 / 贴图元信息 20 项）
+16 份 Corona 预设重新生成：baseMetalness = 0、thinFilm = 0、refractIOR = 0，
+metalnessMode / refractionAmount / dispersionEnable 命中正确

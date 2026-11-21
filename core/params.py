@@ -366,11 +366,32 @@ PARAMS: list[Param] = [
         three={"thinFilmNm": "value"},
     ),
     Param(
-        id="dispersion", label="色散", group="表面", ptype="range", default=5.0,
-        min=0.0, max=30.0, step=0.5,
+        id="dispersion_on", label="色散开关", group="表面", ptype="bool", default=False,
         depends={"refraction_on": True}, enable_by="refraction_on",
-        help="玻璃的色散强度（对应阿贝数反量）：0 = 无色散，5 普通玻璃，15+ 水晶 / 棱镜火彩。"
-             "只有开折射才有效，越大渲染越慢",
+        help="色散要独立开关，不能靠「强度填 0」兼职关闭：真机核对（2026-11-19）"
+             "Corona 的 dispersion 默认 40、V-Ray 的 refraction_dispersion 默认 50，"
+             "而我们一旦下发一个数值就会覆盖渲染器原本的默认值。"
+             "所以开关关闭时一个色散属性都不写，让渲染器保持默认（两端默认都是关闭态）；"
+             "只有勾选本项，才下发强度值并打开使能（V-Ray: refraction_dispersion_on / "
+             "Corona: dispersionEnable）。",
+    ),
+    Param(
+        id="dispersion", label="色散强度", group="表面", ptype="range", default=5.0,
+        min=0.0, max=100.0, step=0.5,
+        depends={"refraction_on": True}, enable_by="refraction_on",
+        help="玻璃的色散强度（对应阿贝数反量：0 = 无色散，5 普通玻璃，15+ 水晶 / 棱镜火彩）。"
+             "只有开折射且勾选「色散开关」才生效，越大渲染越慢。"
+             "量纲已在真机核对（2026-11-19）：V-Ray 侧属性真名是 refraction_dispersion，"
+             "默认 50，实测写 0 / 0.5 / 1 / 5 / 50 / 100 均原值回读、无钳制；"
+             "Corona 侧属性名 dispersion，默认 40、写入 -10~1000 均不被钳制。"
+             "两端量纲一致（均为无量纲强度，量级 0~100），故本参数统一为 0~100 单值下发，"
+             "由 exporter 分别映射到各自属性名，并各自打开使能开关"
+             "（V-Ray: refraction_dispersion_on / Corona: dispersionEnable）",
+        # 键名必须是语义键 "dispersion"（= resolve_* 的字典键），不能填真实属性名
+        # refraction_dispersion —— 真实属性名由 ms_exporter 的候选表按渲染器映射
+        # （V-Ray: refraction_dispersion / Corona: dispersion）。2026-11-19 端到端回归：
+        # 曾把此处置为 refraction_dispersion，导致 Corona 侧 _CORONA_PASSTHROUGH
+        # 找不到 "dispersion" 键，玻璃色散被静默丢弃（0 FAIL 但值没落）。
         vray_prop="dispersion",
         three={"dispersion": "value"},
     ),
@@ -593,10 +614,12 @@ PRESETS: dict[str, dict] = {
                   "refraction_on": False, "transparency_on": False,
                   "anisotropy_on": False, "emis_on": False},
     # 玻璃：反射纯白 + 折射纯白 + IOR 1.5~1.517 + 折射光泽 1，不挂法线/凹凸
+    # 色散要显式开（dispersion_on），否则不下发任何色散属性、保持渲染器默认关闭态
     "glass":     {"metal_mode": False, "rough_level": "mirror", "reflection_on": True,
                   "fresnel_ior": 1.52, "coat_on": False, "normal_on": False,
                   "normal_strength": 0.0, "bump_on": False, "ao_on": False,
                   "refraction_on": True, "refraction_glossiness": 1.0,
+                  "dispersion_on": True, "dispersion": 5.0,
                   "transparency_on": False, "anisotropy_on": False, "emis_on": False},
 
     # ---- 地面三材质（追加在玻璃之后；前端顺序即此字典顺序）----
@@ -896,10 +919,18 @@ def resolve_vray(values: dict) -> dict:
         ev["ao_on"] = False
     if not tex_on("opacity"):
         ev["opacity_on"] = False
+    # 色散拆参数（2026-11-19 真机决策）：开关与强度分离，关掉时**一个色散属性都不下发**。
+    #   旧写法让 dispersion=5.0 对所有材质无条件下发，等于把 V-Ray 默认 50 / Corona 默认 40
+    #   一律改写成 5，属于"用户没动过的参数被静默改动"。
+    if not ev.get("dispersion_on", False):
+        ev["dispersion"] = None
 
     out: dict = {}
     for p in PARAMS:
         v = ev.get(p.id, p.default)
+        if v is None:
+            # 被上面的通道降级 / 色散门控显式置空 -> 不下发，保留渲染器默认
+            continue
         if p.ptype == "bool":
             src = p.vray_on if v else p.vray_off
             out.update(src)
@@ -989,7 +1020,14 @@ def resolve_vray(values: dict) -> dict:
             and ev.get("nb_overlay", True)):
         out["texmap_bump"] = "__NORMALBUMP__"
         out["bump_multiplier"] = float(ev.get("normal_strength", 1.0) or 0.0)
+        # P2（0.11.0）：叠加链路需要「法线层强度」与「凹凸层强度」两个独立标量。
+        # 旧实现只下发一个 __nb_bump_mult__，Max 侧再靠 "mult" 子串去猜属性名：
+        # V-Ray 的 bump_multiplier 恰好含 mult 所以蒙对了，Corona 的 multiplier 含 mult
+        # 但那是**法线强度**，于是凹凸强度把法线强度覆盖掉 —— 两层强度被压成一层。
+        # 现在两个值分开传，由各渲染器模板精确落到自己的属性上。
         out["__nb_bump_mult__"] = float(ev.get("bump_strength", 0.6) or 0.0)
+        out["__nb_nstr__"] = float(ev.get("normal_strength", 1.0) or 0.0)
+        out["__nb_bstr__"] = float(ev.get("bump_strength", 0.6) or 0.0)
     elif (out.get("texmap_bump") == "__NORMAL__"
             and ev.get("normal_on", True) and tex_on("normal")):
         # ---- 仅法线（没有高度图）：同样走 VRayNormalMap，bump 子槽留空 ----
@@ -1019,3 +1057,226 @@ def resolve_vray(values: dict) -> dict:
     for k, v in (values.get("extra_vray_props") or {}).items():
         out[k] = v
     return out
+
+
+# ======================================================================
+#                     Corona 参数解析（V-Ray 语义 -> Corona 语义）
+# ======================================================================
+# 设计原则：所有「参数推导逻辑」（勾选项 -> 数值 / 开关联动 / 预设 / 贴图占位符）
+# 与渲染器无关，已在 resolve_vray() 里实现且经过真机验证。Corona 只做一层**语义翻译**，
+# 不重复实现推导，避免两套逻辑各自漂移。
+#
+# 翻译的三类差异：
+#   1. 光泽度方向相反：V-Ray 的 reflection_glossiness（越大越光滑）
+#      → Corona 的 roughness（越大越粗糙），即 rough = 1 - gloss。
+#   2. 反射/折射染色合并：V-Ray 用 reflectionColor 给金属染色、refractionColor 给透明染色；
+#      Corona 物理材质只有一个 baseColor 负责金属色，透明靠 baseOpacity + refractColor。
+#      因此 reflectionColor 直接回灌 baseColor（金属模式下它才是真正的基色）。
+#   3. V-Ray 专有项（fog / maxDepth / energyPreservation / brdf_useRoughness 等）
+#      Corona 无对应，丢弃但**必须在脚本里显式声明**，不能让用户以为写进去了。
+
+# 语义键直接透传（两边同名同义）
+_CORONA_PASSTHROUGH = (
+    "metalness", "brdf_ior", "anisotropy", "anisotropy_axis",
+    "selfIllumination", "selfIllumination_multiplier",
+    "dispersion",
+    "coat_amount", "coat_ior",
+    "sheen_amount", "sheenColor",
+    "sssAmount", "sssRadius",
+    "bump_multiplier", "diffuse",
+)
+# 不在此表：coat_glossiness / sheen_glossiness（Corona 分别用 clearcoatRoughness /
+# sheenRoughness，需 1-x 反向，见步骤 2b）。
+# 薄膜（thinFilm*）两端的表里都不写：CoronaPhysicalMtl 没有薄膜层通道（已按官方
+# coronaConverter.ms 核对），V-Ray 侧 resolve_vray 当前也不输出该键，属两端共同的已知缺口。
+
+# V-Ray 专有、Corona 无对应的键：丢弃并在导出脚本中逐项告知
+_CORONA_DROPPED = (
+    "brdf_useRoughness", "energyPreservation", "reflection_maxDepth",
+    "refraction_maxDepth", "fogColor", "fog_multiplier", "doubleSided",
+    "translucency", "option_doubleSided", "brdf_fixDarkEdges",
+    "texmap_reflection", "texmap_refraction",
+)
+
+# 语义等价或影响可忽略的差异：Corona 端不需要替身，也不必写进告警刷屏
+_CORONA_SILENT = {
+    "brdf_useRoughness",     # Corona 直接用 roughness，没有这个开关
+    "doubleSided", "option_doubleSided",   # Corona 无单/双面限制
+    "reflection_maxDepth", "refraction_maxDepth",   # Corona 用全局反弹设置
+    "energyPreservation", "brdf_fixDarkEdges",      # Corona 内部已处理
+    "translucency",
+    "refraction_ior", "refraction_glossiness",   # CoronaPhysicalMtl 只有一个 IOR 与一套粗糙度，
+                                                  # 已分别由 brdf_ior / roughness 表达，无需重复写
+    "thinFilm_on",          # 物理材质没有薄膜层通道（官方 coronaConverter.ms 中无 thinFilm* 属性）
+}
+
+# 丢弃项的中文名，写进 .ms 运行日志时用户能看懂是哪一项
+_CORONA_DROP_LABELS = {
+    "brdf_useRoughness": "粗糙度开关(brdf_useRoughness)",
+    "energyPreservation": "能量守恒(energyPreservation)",
+    "reflection_maxDepth": "反射最大深度(reflection_maxDepth)",
+    "refraction_maxDepth": "折射最大深度(refraction_maxDepth)",
+    "fogColor": "折射吸收色(fogColor)",
+    "fog_multiplier": "折射吸收强度(fog_multiplier)",
+    "doubleSided": "双面渲染(doubleSided)",
+    "option_doubleSided": "双面渲染(option_doubleSided)",
+    "translucency": "半透明(translucency)",
+    "brdf_fixDarkEdges": "暗边修正(brdf_fixDarkEdges)",
+    "texmap_reflection": "反射贴图(texmap_reflection)",
+    "texmap_refraction": "折射贴图(texmap_refraction)",
+    "reflectionColor": "反射色(reflectionColor)",
+    "refractionColor": "折射色(refractionColor)",
+}
+
+
+def resolve_corona(values: dict) -> dict:
+    """复用 resolve_vray 的推导结果，翻译成 Corona 语义的属性字典。
+
+    返回的键是**语义键**（不是真实属性名），真实属性名由 ms_exporter 的
+    CORONA_PROP_TARGETS 候选链解析，与 V-Ray 侧完全对称。
+
+    两处不能照搬 V-Ray 的地方（都是「一个 Corona 属性要接住两个 V-Ray 属性」）：
+      1) 金属色：V-Ray 把金属颜色放在 reflectionColor，Corona 只有 baseColor。
+         若不回灌，铜/金这类预设会变成白金属（银色），这是最容易被用户一眼看穿的错。
+      2) 有色玻璃：V-Ray 用 refractionColor 着色，Corona 的 baseColor 在折射分量上
+         同时充当着色，所以透明时要把折射色写进基色。
+    """
+    sem = resolve_vray(values)
+    out: dict = {}
+    consumed: set = set()
+
+    # ---- 1. 同名同义直接透传 ----
+    for k in _CORONA_PASSTHROUGH:
+        if k in sem:
+            out[k] = sem[k]
+            consumed.add(k)
+
+    # ---- 2. 光泽度反向：glossiness -> roughness ----
+    gloss = sem.get("reflection_glossiness")
+    if gloss is not None:
+        try:
+            g = max(0.0, min(1.0, float(gloss)))
+            out["roughness"] = round(1.0 - g, 4)
+            consumed.add("reflection_glossiness")
+        except (TypeError, ValueError):
+            pass
+
+    # ---- 2b. 涂膜 / 光泽绒毛：Corona 用 roughness 语义，需 1-x 反向 ----
+    # resolve_vray 产出的键是 V-Ray 属性名 coat_glossiness / sheen_glossiness（1=光滑），
+    # 而 CoronaPhysicalMtl 只有 clearcoatRoughness / sheenRoughness（0=光滑），
+    # 直接透传会得到「越调越哑」的反向结果。两个属性名已按官方 coronaConverter.ms 核对。
+    for _src, _dst in (("coat_glossiness", "coat_roughness"),
+                       ("sheen_glossiness", "sheen_roughness")):
+        _g = sem.get(_src)
+        if _g is not None:
+            try:
+                out[_dst] = round(1.0 - max(0.0, min(1.0, float(_g))), 4)
+                consumed.add(_src)
+            except (TypeError, ValueError):
+                pass
+
+    # ---- 3. 透明度 -> refractionAmount（折射透射）----
+    # 真机核对（本机 Corona + 3ds Max 2024 中文版）：CoronaPhysicalMtl 没有 V-Ray 那种
+    # 「refractionColor 着色 + 透射」的双通道，透明只能靠 refractionAmount(0-1) 打开折射。
+    # opacityLevel 只是 alpha 遮挡，写在玻璃上会得到一块不透明灰块 —— 两者不可混用。
+    transmission = None
+    if values.get("transparency_on", False):
+        try:
+            transmission = round(max(0.0, min(1.0,
+                             float(values.get("transparency_amount", 0.5) or 0.0))), 4)
+        except (TypeError, ValueError):
+            transmission = None
+    if transmission is None:
+        rc = sem.get("refractionColor")
+        if isinstance(rc, (tuple, list)) and rc:
+            try:
+                if float(max(rc)) > 0.001:
+                    transmission = 1.0
+                    consumed.add("refractionColor")   # 已用于透射，不再算丢失
+            except (TypeError, ValueError):
+                transmission = None
+    if transmission is not None and transmission > 0.0:
+        out["refraction_amount"] = transmission
+
+    # ---- 4a. 金属色回灌基色 ----
+    # 触发条件不只看 metal_mode：预设里存在 metalness=1.0 但不开 metal_mode 的组合，
+    # 只看开关会漏掉它们，金属色就丢了。
+    metalness = out.get("metalness")
+    try:
+        is_metal = bool(values.get("metal_mode", False)) or (
+            metalness is not None and float(metalness) >= 0.5)
+    except (TypeError, ValueError):
+        is_metal = bool(values.get("metal_mode", False))
+    rcol = sem.get("reflectionColor")
+    if is_metal and isinstance(rcol, (tuple, list)) and len(rcol) == 3:
+        out["diffuse"] = tuple(round(float(c), 4) for c in rcol)
+        consumed.add("reflectionColor")
+
+    # ---- 4b. 有色玻璃：透明且折射色非白时，基色用折射色 ----
+    tcol = sem.get("refractionColor")
+    if transmission is not None and transmission > 0.001 and isinstance(tcol, (tuple, list)) and len(tcol) == 3:
+        try:
+            if max(float(c) for c in tcol) < 0.999:
+                out["diffuse"] = tuple(round(float(c), 4) for c in tcol)
+                consumed.add("refractionColor")
+        except (TypeError, ValueError):
+            pass
+
+    # ---- 4c. 金属度只能二值化 ----
+    # 真机核对：CoronaPhysicalMtl 的金属度是 metalnessMode（0=非金属 / 1=金属，整数模式开关）
+    # 加 metalnessTexmap，**没有标量金属度属性**。所以 0.3、0.7 这类中间值无法精确表达，
+    # 只能按 0.5 阈值二值化；需要真实中间金属度只能靠金属度贴图（metallic 通道）。
+    if "metalness" in out:
+        try:
+            out["metalness"] = 1.0 if float(out["metalness"]) >= 0.5 else 0.0
+        except (TypeError, ValueError):
+            out.pop("metalness", None)
+
+    # ---- 5. 贴图占位符与控制键原样继承（exporter 按 Corona 槽位重新落位）----
+    for k, v in sem.items():
+        if k.startswith("__") or k.startswith("texmap_"):
+            out[k] = v
+
+    # ---- 6. 丢弃清单：只报「真的有损」的项 ----
+    # 旧实现只遍历 _CORONA_DROPPED 白名单，凡是「不在白名单又没被映射」的键会静默消失
+    # （实测漏掉未消费的 reflectionColor / refractionColor）。现在对 sem 全集求差，
+    # 再用 _CORONA_SILENT 过滤掉语义等价或影响可忽略的项，避免每个材质都刷一长串告警。
+    def _near_white(c) -> bool:
+        try:
+            return len(c) == 3 and all(float(x) >= 0.985 for x in c)
+        except (TypeError, ValueError):
+            return False
+
+    def _near_black(c) -> bool:
+        try:
+            return len(c) == 3 and all(float(x) <= 0.02 for x in c)
+        except (TypeError, ValueError):
+            return True
+
+    dropped: list = []
+    for k, v in sem.items():
+        if k in consumed or k.startswith("__"):
+            continue
+        if k.startswith("texmap_") and k not in _CORONA_DROPPED:
+            continue          # 贴图槽已按 Corona 槽位重新挂好，不算丢弃
+        if k in _CORONA_SILENT:
+            continue          # 语义等价或无实际影响，不打扰用户
+        # 有默认值的项：等于默认就是「没调过」，不用报
+        if k in ("reflectionColor", "refractionColor") and _near_white(v):
+            continue
+        if k == "fogColor" and _near_black(v):
+            continue
+        if k == "fog_multiplier" and not v:
+            continue
+        dropped.append(_CORONA_DROP_LABELS.get(k, k))
+    if dropped:
+        out["__dropped__"] = dropped
+    out["__renderer__"] = "corona"
+    return out
+
+
+def resolve(values: dict, renderer: str = "vray") -> dict:
+    """按渲染器分派；renderer 只接受 vray / corona，其余按 vray 处理。"""
+    if str(renderer).lower() == "corona":
+        return resolve_corona(values)
+    return resolve_vray(values)

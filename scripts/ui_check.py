@@ -328,6 +328,28 @@ def main() -> int:
         cdp.shot(s2)
         shots.append(str(s2))
 
+        # 渲染器目标切换（0.9.0）：默认 V-Ray；切 Corona 后激活态/提示/导出目标要跟着变，
+        # 但参数项不能变（同一套 61 参数出两种脚本）。切回 V-Ray 以免影响后续预设断言。
+        check("渲染器默认 V-Ray",
+              "document.querySelector('#rendererSeg .active').dataset.renderer",
+              "vray", lambda v: v == "vray")
+        cdp.js("document.querySelector('#rendererSeg [data-renderer=\"corona\"]').click()")
+        time.sleep(0.5)
+        check("切 Corona 后激活态",
+              "document.querySelector('#rendererSeg .active').dataset.renderer",
+              "corona", lambda v: v == "corona")
+        check("切 Corona 后提示含 Corona",
+              "document.getElementById('rendererHint').textContent.includes('Corona')",
+              "True", lambda v: v is True)
+        check("切 Corona 参数总数不变",
+              "document.querySelectorAll('#paramPanel .prow').length",
+              "=%s" % param_n, lambda v: isinstance(v, int) and v == param_n)
+        cdp.js("document.querySelector('#rendererSeg [data-renderer=\"vray\"]').click()")
+        time.sleep(0.5)
+        check("切回 V-Ray 提示正常",
+              "document.getElementById('rendererHint').textContent.includes('VRayMtl')",
+              "True", lambda v: v is True)
+
         # 预设是不是整套快照：对全部预设逐个校验。
         # 做法：每个预设挑一个「与默认值差异最大」的数值参数当探针，先推到离快照最远的边界，
         # 再点该预设按钮，读回值应等于快照值。必须按「中文标签反查 key」——

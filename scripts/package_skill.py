@@ -30,6 +30,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,10 @@ PKG_NAME = "3dsmax-material-forge"
 # 排除规则：目录名前缀匹配 + 文件名后缀匹配
 EXCLUDE_DIRS = {"output", "temp", "__pycache__", "dist", "node_modules", ".git", ".idea", "reports"}
 EXCLUDE_SUFFIX = (".pyc", ".pyo", ".bak", ".log", ".err")
+# docs/evidence 下的真机 .log 是证据链本体：compat.py 的 verified.evidence 直接指向它，
+# 包内若缺这份日志，用户拿到包就无法自证"支持某版本"，必须白名单放行。
+EVIDENCE_DIR = "docs/evidence"
+EVIDENCE_KEEP_SUFFIX = (".log",)
 EXCLUDE_PREFIX = ("temp_", "temp", "tools_verify")   # 根目录调试残留（temp_*.ms / tools_verify_*.py）不许进包
 EXCLUDE_NAMES = {".DS_Store", "Thumbs.db"}
 
@@ -144,11 +149,44 @@ def ms_selfcheck(workdir: Path) -> dict:
     return {"ok": passed, "detail": (tail[-1].strip() if tail else "")}
 
 
+EVIDENCE_REF_RE = re.compile(r"docs/evidence/([A-Za-z0-9._\-]+)")
+
+
+def verify_evidence_chain() -> list[str]:
+    """预演一遍将要进包的文件，校验代码/文档里引用的证据文件确实在包里。
+
+    为什么要有这一步：EXCLUDE_SUFFIX 曾经把 .log 全局排除，而 core/compat.py 的
+    verified.evidence 正指向 docs/evidence/*.log —— 结果是"包里声称支持某版本，
+    但支撑证据没进包"，用户无法自证，属于静默断链。必须在出包前卡住。
+    预演而非打完后检查：失败时 dist 保持原样，不产出半成品包。
+    """
+    packed = [p.relative_to(SKILL_ROOT).as_posix() for p in iter_files(SKILL_ROOT)]
+    have = {Path(p).name for p in packed if p.startswith(EVIDENCE_DIR + "/")}
+    missing: list[str] = []
+    for p in iter_files(SKILL_ROOT):
+        if p.suffix.lower() not in (".py", ".md", ".json", ".ms", ".txt"):
+            continue
+        try:
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for name in EVIDENCE_REF_RE.findall(txt):
+            if name in have or name in missing:
+                continue
+            missing.append(name)
+    return missing
+
+
 def iter_files(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS and not d.startswith(".")]
+        rel_dir = Path(dirpath).relative_to(root).as_posix()
+        in_evidence = rel_dir == EVIDENCE_DIR or rel_dir.startswith(EVIDENCE_DIR + "/")
         for fn in filenames:
-            if fn in EXCLUDE_NAMES or fn.endswith(EXCLUDE_SUFFIX) or fn.startswith(EXCLUDE_PREFIX):
+            if fn in EXCLUDE_NAMES or fn.startswith(EXCLUDE_PREFIX):
+                continue
+            if fn.endswith(EXCLUDE_SUFFIX) and not (
+                    in_evidence and fn.lower().endswith(EVIDENCE_KEEP_SUFFIX)):
                 continue
             p = Path(dirpath) / fn
             yield p
@@ -242,6 +280,14 @@ def main() -> int:
         info = {"params": sc["params"], "presets": sc["presets"]}
 
     print("\n[3/4] 打包")
+    missing_ev = verify_evidence_chain()
+    if missing_ev:
+        print("  [FAIL] 证据链断链：以下被代码/文档引用、但不会被写进包")
+        for m in missing_ev:
+            print(f"         - {EVIDENCE_DIR}/{m}")
+        print("\n证据链校验未通过，中止打包（dist 保持原样）")
+        return 1
+    print("  [PASS] 证据链完整：代码/文档引用的 docs/evidence/* 均会进包")
     if args.no_bakcup:
         # 不在这里物理删除：只提示，删除交由外部（回收站）执行，保留可回滚余地
         olds = sorted(DIST_DIR.glob(f"{PKG_NAME}*.skill"))

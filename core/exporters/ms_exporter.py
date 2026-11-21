@@ -99,6 +99,18 @@ PROP_ON_SWITCH: dict[str, dict[str, Any]] = {
     "thinFilmIOR":       {"thinFilm_on": True},
 }
 
+# Corona 侧没有这些「使能开关」：色散只有数值 refractDispersion、薄膜由 IOR+厚度直接生效。
+# 沿用 V-Ray 的开关名会往 CoronaPhysicalMtl 上写不存在的属性（实测会报 [FAIL]
+# refraction_dispersion_on），所以 Corona 用空表。
+# 真机核对：CoronaPhysicalMtl 的 dispersion 是「强度 + dispersionEnable 开关」两段式，
+# 只写 dispersion 不打开开关等于没写（默认 dispersionEnable=false）。
+CORONA_PROP_ON_SWITCH: dict[str, dict[str, Any]] = {
+    "dispersion": {"dispersionEnable": True},
+}
+
+# Corona 的薄膜没有 min/max 随机区间，无需成对写入
+CORONA_PROP_FOLLOW: dict[str, tuple[str, ...]] = {}
+
 # 联动写入：真机上某些量成对出现，只写一半会不生效或产生非确定结果
 # （薄膜厚度是 min~max 随机区间，只写 min 而 max 还停在 400 会得到 400 的非法区间）
 PROP_FOLLOW: dict[str, tuple[str, ...]] = {
@@ -155,604 +167,145 @@ def _ms_value(v: Any) -> str:
 # ------------------------------------------------------------------
 # MAXScript 模板
 # ------------------------------------------------------------------
-_TEMPLATE = r'''/* ==================================================================
-   Material Forge - 自动生成脚本
-   材质名称 : @@MATNAME@@
-   生成时间 : @@TIMESTAMP@@
-   目标环境 : 3ds Max 2024 / V-Ray 6.x（VRayMtl 不可用时降级 PhysicalMaterial）
-   ------------------------------------------------------------------
-   用法：3ds Max 菜单 Scripting > Run Script，选择本文件即可。
-        脚本会自动创建材质球、载入贴图、写入材质编辑器槽位、保存材质库。
-   ================================================================== */
-(
-    global mf_LOG  = #()
-    global mf_OK   = 0
-    global mf_FAIL = 0
-
-    local MF_TEXTURES = @@TEXLIST@@
-    local MF_MATNAME  = "@@MATNAME@@"
-    local MF_MATLIB   = @@MATLIB@@
-    local MF_UV_TILE  = @@UVTILE@@          -- UV 平铺次数（U/V 同值）
-    local MF_UV_ANGLE = @@UVANGLE@@          -- UV 旋转（度，对应坐标 W_Angle）
-    local MF_NB_BUMP  = @@NBBUMP@@           -- 法线+凹凸叠加时内层凹凸倍率
-    local MF_DISP_ON  = @@DISPON@@           -- 是否给选中物体加置换修改器
-    local MF_DISP_AMT = @@DISPAMT@@          -- 置换强度
-    local MF_DISP_SUB = @@DISPSUB@@          -- 置换细分
-    local MF_DISP_TEX = "@@DISPTEX@@"        -- 置换高度图
-    local MF_AUTOASSIGN = @@AUTOASSIGN@@     -- 是否自动把材质赋给当前选中物体
-
-    global MF_LOGFILE = @@LOGFILE@@      -- 空串表示不落盘；非空时同时写运行日志（实机排查/批量复盘用）
-    fn mfLog s = (
-        append mf_LOG s
-        format "%\n" s
-        if (MF_LOGFILE != "") do (
-            try (
-                local fh = openFile MF_LOGFILE mode:"a"
-                if (fh != undefined) do ( format "%\n" s to:fh; close fh )
-            ) catch ( 0 )
-        )
-    )
-
-    -- 贴图路径解析：优先「脚本同级的 textures 目录」，其次原绝对路径。
-    -- 这样整个导出目录可以整体搬走/改名，贴图不会因为绝对路径失效而丢图。
-    fn mfResolveTex f = (
-        local base = ""
-        try ( base = getFilenamePath (getSourceFileName()) ) catch ( base = "" )
-        local r = f
-        if (base != "") do (
-            local cand = base + "textures/" + (filenameFromPath f)
-            if (doesFileExist cand) then ( r = cand )
-            else if (doesFileExist f) then ( r = f )
-            else r = cand
-        )
-        r
-    )
-
-    -- 精确写（无类型守卫）：贴图槽等非标量目标用
-    fn mfSet obj p v = (
-        if (hasProperty obj p) then (
-            try (
-                setProperty obj p v
-                mf_OK += 1
-                true
-            ) catch (
-                mf_FAIL += 1
-                mfLog ("  [FAIL] " + (p as string))
-                false
-            )
-        ) else false
-    )
-
-    -- 值转换：把脚本侧字面量转成目标属性当前的类型；转不了就拒绝，绝不静默写入
-    -- 返回 #(ok, 值或错误说明)
-    fn mfCoerce cur v = (
-        local cc = classof cur
-        local vc = classof v
-        if (cc == Color) then (
-            if (vc == Color) then #(true, v)
-            else #(false, ("需要 Color，收到 " + (vc as string)))
-        ) else if (cc == BooleanClass) then (
-            if (vc == BooleanClass) then #(true, v)
-            else if (vc == Integer) then #(true, (v != 0))
-            else if (vc == Float) then #(true, (v != 0.0))
-            else #(false, ("需要 Boolean，收到 " + (vc as string)))
-        ) else if (cc == Integer) then (
-            if (vc == Integer) then #(true, v)
-            else if (vc == BooleanClass) then #(true, (if v then 1 else 0))
-            else if (vc == Float) then #(true, (v as integer))
-            else #(false, ("需要 Integer，收到 " + (vc as string)))
-        ) else if (cc == Float) then (
-            if (vc == Float) then #(true, v)
-            else if (vc == Integer) then #(true, (v as float))
-            else if (vc == BooleanClass) then #(true, (if v then 1.0 else 0.0))
-            else #(false, ("需要 Float，收到 " + (vc as string)))
-        ) else if (cc == UndefinedClass) then (
-            #(false, "该属性是贴图槽，拒绝写入标量")
-        ) else (
-            #(false, ("不支持的目标类型 " + (cc as string)))
-        )
-    )
-
-    -- 带类型守卫的写入：读当前值拿类型 -> 转换 -> 写 -> 逐条可读日志
-    fn mfSetTyped obj p v = (
-        local cur = undefined
-        local okRead = false
-        try ( cur = getProperty obj p; okRead = true ) catch ( okRead = false )
-        if (not okRead) then (
-            mf_FAIL += 1
-            mfLog ("  [FAIL] 读取失败: " + (p as string))
-            false
-        ) else (
-            local res = mfCoerce cur v
-            if (res[1] != true) then (
-                mf_FAIL += 1
-                mfLog ("  [TYPE] " + (p as string) + " : " + (res[2] as string) + "，已拒绝写入")
-                false
-            ) else (
-                try (
-                    setProperty obj p res[2]
-                    mf_OK += 1
-                    mfLog ("  [OK] " + (p as string) + " = " + (res[2] as string))
-                    true
-                ) catch (
-                    mf_FAIL += 1
-                    mfLog ("  [FAIL] 写入异常: " + (p as string))
-                    false
-                )
-            )
-        )
-    )
-
-    -- 属性名同时包含全部关键词即命中
-    fn mfHit pn kws = (
-        local ok = true
-        for k in kws where (findString pn k == undefined) do ok = false
-        ok
-    )
-
-    fn mfSetByKeywords obj kws v = (
-        local hit = undefined
-        for p in (getPropNames obj) while hit == undefined do (
-            if (mfHit (toLower (p as string)) kws) do hit = p
-        )
-        if hit != undefined then ( mfSetTyped obj hit v )
-        else (
-            mf_FAIL += 1
-            mfLog ("  [FAIL] 关键字无命中: " + (kws as string))
-            false
-        )
-    )
-
-    -- 精确优先：按候选名逐个 hasProperty，命中即带类型守卫写入；
-    -- 全部候选都不存在才记一条可读日志（旧版此处静默 +1，脚本跑完看不出哪里没写进去）
-    fn mfAssign obj cands v = (
-        local hit = undefined
-        for c in cands while hit == undefined do (
-            local pn = c as name
-            if (hasProperty obj pn) do hit = pn
-        )
-        if (hit == undefined) then (
-            mf_FAIL += 1
-            mfLog ("  [SKIP] 属性不存在: " + (cands[1] as string) + "（候选 " + (cands.count as string) + " 个全不匹配）")
-            false
-        ) else ( mfSetTyped obj hit v )
-    )
-
-    -- 材质是否挂了任意贴图（扫描全部 textureMap 类型属性）
-    fn mfHasAnyTexture m = (
-        local has = false
-        for p in (getPropNames m) while (not has) do (
-            local v = undefined
-            try ( v = getProperty m p ) catch ( v = undefined )
-            if (v != undefined and (superClassOf v == textureMap)) do has = true
-        )
-        has
-    )
-
-    -- 判断材质编辑器槽位是否为「未使用的默认槽」
-    -- 踩坑记录 1：Max 2024 里 1~24 号槽默认都挂着材质对象，永远不为 undefined，
-    -- 所以不能再用 meditMaterials[i] == undefined 判空（那样恒不成立，每套都会覆盖第 1 槽）。
-    -- 踩坑记录 2（0.8.3 实机验证暴露）：同一版本里默认槽的类并不固定，实测为
-    -- PhysicalMaterial（名字 "02 - Default"）；只认 Standardmaterial 会让判空恒为 false，
-    -- 于是「24 槽全被占用」→ 又退化成覆盖第 1 槽。用户自己起的名字（如 ProtectedMat）
-    -- 不含默认编号，因此不会被误判为空槽。
-    -- 现判据：名字命中原生默认命名（名字带 # 编号，或形如 01 - Default / 01 - 默认）+ 全属性无任何贴图。
-    fn mfEmptyMeditSlot m = (
-        local r = false
-        try (
-            if (m != undefined) do (
-                local nm = m.name
-                local isDefaultName = (matchPattern nm pattern:"*#*") or (matchPattern nm pattern:"* - Default") or (matchPattern nm pattern:"* - 默认")
-                if (isDefaultName and (not (mfHasAnyTexture m))) do r = true
-            )
-        ) catch ( r = false )
-        r
-    )
-
-    -- 找贴图槽：属性名含关键词，且值为 textureMap 或未赋值
-    fn mfFindTexSlot obj kws = (
-        local found = undefined
-        local cur = undefined
-        local got = false
-        for p in (getPropNames obj) while found == undefined do (
-            if (mfHit (toLower (p as string)) kws) do (
-                cur = undefined
-                got = false
-                try ( cur = getProperty obj p; got = true ) catch ( got = false )
-                if got do (
-                    if cur == undefined then found = p
-                    else if ((superClassOf cur) == textureMap) do found = p
-                )
-            )
-        )
-        found
-    )
-
-    -- 位图 UV 坐标：平铺 + 旋转（W_Angle 单位为度；属性名按版本反射兜底）
-    fn mfApplyUV b = (
-        if (MF_UV_TILE != 1.0 or MF_UV_ANGLE != 0.0) do (
-            local co = undefined
-            try ( co = b.coords ) catch ( co = b.coordinates )
-            if co == undefined do try ( co = b.coordinates ) catch ( 0 )
-            if co != undefined then (
-                try ( co.U_Tiling = MF_UV_TILE ) catch ( 0 )
-                try ( co.V_Tiling = MF_UV_TILE ) catch ( 0 )
-                if (MF_UV_ANGLE != 0.0) do (
-                    local ap = undefined
-                    for nm in #("W_Angle", "U_V_Angle", "UV_Rotation", "angle") while ap == undefined do (
-                        for p in (getPropNames co) while ap == undefined do (
-                            if ((toLower (p as string)) == (toLower nm)) do ap = p
-                        )
-                    )
-                    if ap == undefined do (
-                        for p in (getPropNames co) while ap == undefined do (
-                            if ((findString (toLower (p as string)) "angle") != undefined) do ap = p
-                        )
-                    )
-                    if ap != undefined then (
-                        try (
-                            setProperty co ap MF_UV_ANGLE
-                            mfLog ("  [OK] UV 旋转 " + (MF_UV_ANGLE as string) + "° -> " + (ap as string))
-                        ) catch (
-                            mfLog "  [WARN] UV 旋转赋值失败"
-                        )
-                    ) else (
-                        mfLog "  [WARN] 未找到坐标旋转属性，UV 旋转跳过"
-                    )
-                )
-            ) else (
-                mfLog "  [WARN] 该贴图无坐标对象，UV 平铺/旋转跳过"
-            )
-        )
-        b
-    )
-
-    -- 建位图贴图节点（自动套用 UV 平铺 / 旋转）
-    fn mfBitmap f = (
-        local rf = mfResolveTex f
-        local b = Bitmaptexture fileName:rf
-        b.name = (filenameFromPath f)
-        try ( b.alphaSource = 0 ) catch ( b.alphaSource = 0 )
-        mfApplyUV b
-    )
-
-    -- 贴图槽定位：先按精确属性名，再退回关键词（跨语言/旧版本兜底）
-    fn mfFindSlotEx obj exNames kws = (
-        local found = undefined
-        for c in exNames while found == undefined do (
-            local pn = c as name
-            if (hasProperty obj pn) do found = pn
-        )
-        if (found == undefined) do found = mfFindTexSlot obj kws
-        found
-    )
-
-    -- 把贴图接到指定语义槽
-    fn mfAttachTex mtl exNames kws f = (
-        local slot = mfFindSlotEx mtl exNames kws
-        if slot == undefined then (
-            mf_FAIL += 1
-            mfLog ("  [FAIL] 未找到贴图槽: " + (kws[1] as string))
-            false
-        ) else (
-            local bm = mfBitmap f
-            try (
-                setProperty mtl slot bm
-                mf_OK += 1
-                mfLog ("  [OK] tex -> " + (slot as string))
-                true
-            ) catch (
-                mf_FAIL += 1
-                mfLog ("  [FAIL] tex -> " + (slot as string))
-                false
-            )
-        )
-    )
-
-    -- 按候选属性名写值：兼容中文本地化的属性名（如 污垢纹理的 radius/半径）
-    fn mfSetOn obj kws val = (
-        local pns = for p in (getPropNames obj) collect (p as string)
-        local hit = false
-        for k in kws while (not hit) do (
-            local m = for p in pns where (toLower p) == (toLower k) collect p
-            if m.count > 0 do (
-                try ( setProperty obj m[1] val; hit = true ) catch ( hit = false )
-            )
-        )
-        hit
-    )
-
-    -- 污垢（AO）纹理类名同样本地化：中文版 V-Ray 6 实测为 "VRay_污垢"，
-    -- 英文字面量 VRayDirt / VRay_Dirt 均不存在，直接调用会静默降级。
-    fn mfDirtClass = (
-        local cands = #("VRayDirt", "VRay_Dirt", "VRay_污垢")
-        for n in cands do (
-            local c = undefined
-            try ( c = execute n ) catch ( c = undefined )
-            if c != undefined do return c
-        )
-        for c in textureMap.classes do (
-            local s = c as string
-            local sl = toLower s
-            local isVRay = ((findString sl "vray") != undefined)
-            local isDirt = (((findString s "污垢") != undefined) or ((findString sl "dirt") != undefined))
-            if (isVRay and isDirt) do (
-                local instOk = false
-                try ( local o = c(); instOk = true ) catch ( instOk = false )
-                if instOk do return c
-            )
-        )
-        undefined
-    )
-
-    -- 法线（+ 可选凹凸）：VRayNormalMap(normal_map=法线, bump_map=高度) -> mtl.bump
-    -- bf 传 undefined 表示没有高度图：bump 子槽留空，只做法线扰动，
-    -- 避免把法线 RGB 当高度用（V-Ray 下会产生杂乱凹凸）
-
-    -- V-Ray 插件类名会随界面语言本地化（中文版为 "VRay_法线贴图"），
-    -- 直接写字面量 VRayNormalMap 在中文环境下恒为 undefined，会导致静默降级。
-    -- 这里按候选名 + 类注册表语义遍历解析，保证跨语言拿到法线贴图类。
-    fn mfNormalMapClass = (
-        local cands = #("VRayNormalMap", "VRay_法线贴图", "VRay_法线")
-        for n in cands do (
-            local c = undefined
-            try ( c = execute n ) catch ( c = undefined )
-            if c != undefined do return c
-        )
-        for c in textureMap.classes do (
-            local s = c as string
-            local sl = toLower s
-            local isVRay = ((findString sl "vray") != undefined)
-            local isNormal = (((findString s "法线") != undefined) or ((findString sl "normal") != undefined))
-            local isBumpish = (((findString s "凹凸") != undefined) or ((findString sl "bump2normal") != undefined))
-            if (isVRay and isNormal and (not isBumpish)) do (
-                local instOk = false
-                try ( local o = c(); instOk = true ) catch ( instOk = false )
-                if instOk do return c
-            )
-        )
-        undefined
-    )
-
-    fn mfAttachNormalBump mtl nf bf = (
-        local combo = undefined
-        local comboClass = mfNormalMapClass()
-        if comboClass != undefined do (
-            try ( combo = comboClass() ) catch ( combo = undefined )
-        )
-        if combo == undefined then (
-            mfLog "  [WARN] V-Ray 法线贴图节点不可用，降级为仅法线"
-            mfAttachTex mtl #("texmap_bump") #("bump") nf
-        ) else (
-            local okN = false
-            local okB = false
-            local ns = mfFindTexSlot combo #("normal")
-            if ns != undefined do (
-                try ( setProperty combo ns (mfBitmap nf); okN = true ) catch ( okN = false )
-            )
-            if bf != undefined do (
-                local bs = mfFindTexSlot combo #("bump")
-                if bs != undefined do (
-                    try ( setProperty combo bs (mfBitmap bf); okB = true ) catch ( okB = false )
-                )
-            )
-            if (MF_NB_BUMP > 0.0) do (
-                for p in (getPropNames combo) where ((findString (toLower (p as string)) "mult") != undefined) do (
-                    try ( setProperty combo p MF_NB_BUMP ) catch ( 0 )
-                )
-            )
-            local slot = mfFindSlotEx mtl #("texmap_bump") #("bump")
-            if slot != undefined then (
-                try (
-                    setProperty mtl slot combo
-                    mf_OK += 1
-                    local tag = "法线+凹凸叠加"
-                    if bf == undefined do tag = "仅法线(VRayNormalMap 包装)"
-                    local bsTxt = okB as string
-                    if bf == undefined do bsTxt = "留空"
-                    mfLog ("  [OK] " + tag + "已挂载 (normal=" + (okN as string) + " / bump=" + bsTxt + ")")
-                    true
-                ) catch (
-                    mf_FAIL += 1
-                    mfLog "  [FAIL] 法线+凹凸节点挂载失败"
-                    false
-                )
-            ) else (
-                mf_FAIL += 1
-                mfLog "  [FAIL] 未找到 bump 槽，法线+凹凸跳过"
-                false
-            )
-        )
-    )
-
-    format "\n===== Material Forge 开始 =====\n"
-    format "材质名称: %\n" MF_MATNAME
-    format "贴图数量: %\n" MF_TEXTURES.count
-
-    -- ---------------- 0. 环境自检（不引用 VRayMtl 名字，避免变量未定义抛错）----------------
-    local mfMaxVer = "未知"
-    try ( mfMaxVer = ((maxVersion())[1]) as string ) catch ( mfMaxVer = "未知" )
-    local mfRender = "未知"
-    try ( mfRender = (classof renderers.current) as string ) catch ( mfRender = "未知" )
-    -- 渲染器判定：中文版类名是「V_Ray_6__update_2_1」，直接搜 "vray" 会漏（下划线断开），
-    -- 先把非字母数字字符剥掉再匹配，兼容 V_Ray / V-Ray / VRay 各种写法。
-    local mfRenderNorm = ""
-    for i = 1 to mfRender.count do (
-        local cl = toLower (substring mfRender i 1)
-        if ((findString "abcdefghijklmnopqrstuvwxyz0123456789" cl) != undefined) do (
-            mfRenderNorm += cl
-        )
-    )
-    local mfIsVRayRender = ((findString mfRenderNorm "vray") != undefined)
-    mfLog ("[ENV] 3ds Max 版本号: " + mfMaxVer)
-    mfLog ("[ENV] 当前渲染器: " + mfRender)
-    mfLog ("[ENV] 贴图目录策略: 优先脚本同级 textures/ ，回退绝对路径")
-
-    -- 强制降级钩子：运行前把全局变量 mfForceDegrade 设为 true，
-    -- 就能在「已装 V-Ray」的机器上验证降级分支（回归自检用），日常使用不必设置。
-    local mfDegrade = false
-    try ( mfDegrade = (mfForceDegrade == true) ) catch ( mfDegrade = false )
-    if mfDegrade do (
-        mfLog "**** [ENV] 已启用强制降级（mfForceDegrade=true），本次不创建 VRayMtl ****"
-    )
-
-    -- ---------------- 1. 创建材质 ----------------
-    local isVray = false
-    local mtl = undefined
-    if (not mfDegrade) do (
-        try ( mtl = VRayMtl(); isVray = true ) catch ( isVray = false )
-    )
-    if isVray then ( mfLog "[OK] VRayMtl 创建成功" )
-    else (
-        mfLog "**** [WARN] VRayMtl 不可用：V-Ray 未安装 / 未加载 / 未授权 ****"
-        mfLog "****          已自动降级为 PhysicalMaterial，参数会尽量映射，效果与 VRayMtl 不等价 ****"
-        try ( mtl = PhysicalMaterial() ) catch ( mtl = undefined )
-        if mtl == undefined do (
-            try ( mtl = StandardMaterial() ) catch ( mtl = undefined )
-        )
-        try ( MF_MATNAME = MF_MATNAME + "_降级_" + ((classof mtl) as string) ) catch ( 0 )
-    )
-    if (isVray and not mfIsVRayRender) do (
-        mfLog "**** [WARN] 当前渲染器不是 V-Ray：VRayMtl 已创建，但视口/渲染需切到 V-Ray 才能看到正确效果 ****"
-        mfLog "****          切换方法：Render Setup (F10) > Renderer > V-Ray 6 ****"
-    )
-    if mtl == undefined then (
-        messageBox "无法创建任何材质（VRayMtl / PhysicalMaterial / StandardMaterial 均失败）" title:"Material Forge"
-        throw "Material Forge: 材质创建失败"
-    )
-    mtl.name = MF_MATNAME
-
-    -- ---------------- 2. 写入标量与颜色参数 ----------------
-    mfLog "--- 参数写入 ---"
-@@ASSIGNMENTS@@
-
-    -- ---------------- 3. 挂接贴图 ----------------
-    mfLog "--- 贴图挂接 ---"
-@@TEXTURES@@
-
-    -- ---------------- 4. 创建材质球对象 ----------------
-    mfLog "--- 场景对象 ---"
-    local sph = undefined
-    try ( sph = Sphere radius:60 pos:[0,0,0] segments:64 ) catch ( sph = undefined )
-    if sph != undefined then (
-        sph.name = MF_MATNAME + "_Ball"
-        sph.material = mtl
-        try ( sph.wirecolor = color 128 128 128 ) catch ( sph.wirecolor = color 128 128 128 )
-        mfLog "[OK] 已创建预览球并赋予材质"
-    ) else (
-        mfLog "[WARN] 预览球创建失败，材质仍在材质编辑器中"
-    )
-
-    -- ---------------- 5. 放入材质编辑器槽位 ----------------
-    -- 5.1 已有同名槽 -> 复用，重复跑同一材质不会堆一堆副本
-    local target = 0
-    for i = 1 to 24 while target == 0 do (
-        local em = meditMaterials[i]
-        if em != undefined do (
-            local same = false
-            try ( same = (em.name == mtl.name) ) catch ( same = false )
-            if same do target = i
-        )
-    )
-    local reused = (target > 0)
-    -- 5.2 没有同名槽，找未使用的默认槽
-    if target == 0 do (
-        for i = 1 to 24 while target == 0 do (
-            if (mfEmptyMeditSlot meditMaterials[i]) do target = i
-        )
-    )
-    -- 5.3 24 槽全被占用才兜底覆盖第 1 槽
-    local forced = false
-    if target == 0 do ( target = 1; forced = true )
-    meditMaterials[target] = mtl
-    if forced then (
-        mfLog "[WARN] 材质编辑器 24 槽均已占用，覆盖第 1 槽"
-    ) else if reused then (
-        mfLog ("[OK] 材质已回填材质编辑器原槽位 " + (target as string) + " 号")
-    ) else (
-        mfLog ("[OK] 材质已放入材质编辑器槽位 " + (target as string) + " 号")
-    )
-
-    -- ---------------- 6. 保存材质库（可选，能力探测式降级）----------------
-    -- 3ds Max 2024 已移除 newMaterialLibrary / loadTempMaterialLibrary 等旧接口，
-    -- 无库文件可用时一律 [SKIP] 而不是 [FAIL]，避免把环境能力缺失误报成失败。
-    if MF_MATLIB != "" do (
-        local lib = undefined
-        try (
-            if (doesFileExist MF_MATLIB) do lib = loadMaterialLibrary MF_MATLIB
-        ) catch ( lib = undefined )
-        if lib == undefined then (
-            mfLog ("  [SKIP] 未找到可写材质库文件，材质仅保留在材质编辑器中（可手动另存为: " + MF_MATLIB + "）")
-        ) else (
-            try (
-                lib[mtl.name] = mtl
-                saveMaterialLibrary lib
-                mf_OK += 1
-                mfLog ("  [OK] 材质库已保存: " + MF_MATLIB)
-            ) catch (
-                mfLog ("  [SKIP] 材质库追加失败: " + (getCurrentException()))
-            )
-        )
-    )
-
-    -- ---------------- 6.5 置换修改器（仅作用于当前选中物体）----------------
-    if (MF_DISP_ON and MF_DISP_SUB > 0) do (
-        if (selection.count == 0) then (
-            mfLog "[WARN] 置换细分未生效：请先选中物体再执行脚本"
-        ) else (
-            for o in selection do (
-                local dm = undefined
-                try ( dm = VRayDisplacementMod() ) catch ( dm = undefined )
-                if dm == undefined then (
-                    mfLog "[WARN] VRayDisplacementMod 不可用，置换细分跳过"
-                ) else (
-                    try (
-                        for p in (getPropNames dm) do (
-                            local lp = toLower (p as string)
-                            if ((findString lp "amount") != undefined) do ( try ( setProperty dm p MF_DISP_AMT ) catch ( 0 ) )
-                            if ((findString lp "subdiv") != undefined) do ( try ( setProperty dm p MF_DISP_SUB ) catch ( 0 ) )
-                        )
-                        if (MF_DISP_TEX != "") do (
-                            local ts = mfFindTexSlot dm #("texmap")
-                            if ts != undefined do ( try ( setProperty dm ts (mfBitmap MF_DISP_TEX) ) catch ( 0 ) )
-                        )
-                        addModifier o dm
-                        mfLog ("[OK] 置换修改器 -> " + o.name + "（细分 " + (MF_DISP_SUB as string) + "）")
-                    ) catch (
-                        mfLog ("[FAIL] 置换修改器添加失败: " + o.name)
-                    )
-                )
-            )
-        )
-    )
-
-    -- ---------------- 6.6 自动赋给当前选中物体 ----------------
-    if MF_AUTOASSIGN do (
-        if (selection.count == 0) then (
-            mfLog "[INFO] 当前未选中物体：材质已放入材质编辑器，可拖给模型"
-        ) else (
-            local n = 0
-            for o in selection do (
-                try ( o.material = mtl; n += 1 ) catch ( 0 )
-            )
-            mfLog ("[OK] 材质已自动赋给 " + (n as string) + " 个选中物体")
-        )
-    )
-
-    -- ---------------- 7. 自诊断输出 ----------------
-    format "\n========== Material Forge 执行结果 ==========\n"
-    for s in mf_LOG do format "%\n" s
-    format "---------------------------------------------\n"
-    format "成功: %   失败: %\n" mf_OK mf_FAIL
-    format "材质类型: %\n" (classof mtl)
-    format "材质名称: %\n" mtl.name
-    format "=============================================\n"
-
-    try ( select sph ) catch ( 0 )
-    try ( max zoomext sel all ) catch ( 0 )
-    format "完成。\n"
+# 模板片段来源：公共部分（tpl_common）与 V-Ray 专属部分（tpl_vray）分开存放，
+# Corona 复用同一份公共片段，拼接顺序与 0.8.4 的内联模板保持一致。
+from .tpl_common import (  # noqa: E402
+    HEAD as _TPL_HEAD,
+    FUNCS as _TPL_FUNCS,
+    ENV as _TPL_ENV,
+    MID as _TPL_MID,
+    TAIL as _TPL_TAIL,
 )
-'''
+from .tpl_vray import VRAY_FNS as _TPL_VRAY_FNS, VRAY_CREATE as _TPL_VRAY_CREATE  # noqa: E402
+from ..compat import probe_ms as _compat_probe_ms  # noqa: E402
+from .tpl_corona import CORONA_FNS as _TPL_CORONA_FNS, CORONA_CREATE as _TPL_CORONA_CREATE  # noqa: E402
+
+_TEMPLATE = (
+    _TPL_HEAD
+    + _TPL_FUNCS
+    + _TPL_VRAY_FNS
+    + _TPL_ENV
+    + _TPL_VRAY_CREATE
+    + _TPL_MID
+    + _TPL_TAIL
+)
+
+# ======================================================================
+#                     Corona 专属候选表与模板
+# ======================================================================
+# Corona 物理材质（CoronaPhysicalMtl）的贴图槽/属性名与 V-Ray 完全不同体系，必须独立成表。
+# 旧版 CoronaMtl 的属性名（colorDiffuse / texmapDiffuse / levelReflect ...）作为后备候选并列，
+# 让同一份脚本在 Corona 7+ 与更老的安装上都能尽量命中。
+#
+# 候选链里**故意不混入 glossiness**：Legacy CoronaMtl 的 glossiness 与 Corona 的 roughness
+# 语义相反，若把粗糙度值写进 glossiness 会产生「越调越亮」的反向结果。
+# 宁可 SKIP 并在日志里显式报出，也不写错方向的数值。
+# 2026-11 已按本机 Corona 12 随包官方脚本 coronaConverter.ms 的**物理材质**分支逐条核对
+# （该脚本里体验旧 CoronaMtl 与 CoronaPhysicalMtl 两套属性名，只有 outputMaterial.* 那批才是物理材质）：
+#   漫反射 baseColor / 粗糙度 baseRoughness / IOR baseIor / 各向异性 baseAnisotropy+baseAnisoRotation
+#   / 不透明度 opacityLevel / 色散 dispersion / 涂膜 clearcoatAmount+clearcoatIor+clearcoatRoughness
+#   / 光泽绒毛 sheenAmount+sheenColor+sheenRoughness / SSS sssAmount+sssRadius
+#   / 凹凸 baseBumpTexmap+baseBumpMapAmount / 自发光 selfIllumColor+selfIllumLevel。
+# 两个真机以外拿不到的结论：
+#   1) 物理材质**没有数值金属度属性**，只有 metalnessMode(0/1 模式开关) + metalnessTexmap，
+#      因此 metalness 语义只能落到 metalnessMode（写入 0/1，靠 MaxScript 的 float→int 隐式转换）。
+#   2) 物理材质**没有薄膜层**（无 thinFilm* 属性），薄膜两项摘除；V-Ray 侧 resolve_vray 当前
+#      也不输出该键，属两端共同缺口，不是 Corona 独有。
+CORONA_PROP_TARGETS = {
+    "diffuse":                     (("baseColor", "basecolor", "colorDiffuse"), "color"),
+    # 真机确认：物理材质只有 metalnessMode（0/1 模式开关）+ metalnessTexmap，无标量金属度，
+    # baseMetalness 这个常见误写的名字在本机 Corona 上并不存在，已从候选链剔除。
+    "metalness":                   (("metalnessMode", "metalness"), "float"),
+    "roughness":                   (("baseRoughness", "roughness"), "float"),
+    "brdf_ior":                    (("baseIor", "ior"), "float"),
+    "anisotropy":                  (("baseAnisotropy", "anisotropy"), "float"),
+    "anisotropy_axis":             (("baseAnisoRotation", "anisotropyRotation"), "float"),
+    # 透明：真机核对确认 Corona 的「透明」是 refractionAmount（折射透射），
+    # opacityLevel 只做 alpha 遮挡；两者同名易混，语义键必须分开。
+    "refraction_amount":           (("refractionAmount", "refraction"), "float"),
+    "opacity":                     (("opacityLevel", "levelOpacity", "opacity"), "float"),
+    "dispersion":                  (("dispersion", "refractDispersion"), "float"),
+    "coat_amount":                 (("clearcoatAmount",), "float"),
+    "coat_ior":                    (("clearcoatIor",), "float"),
+    "coat_roughness":              (("clearcoatRoughness",), "float"),
+    "sheen_amount":                (("sheenAmount",), "float"),
+    "sheenColor":                  (("sheenColor",), "color"),
+    "sheen_roughness":             (("sheenRoughness",), "float"),
+    "sssAmount":                   (("sssAmount", "baseSssAmount", "levelTranslucency"), "float"),
+    "sssRadius":                   (("sssRadius", "baseSssRadius"), "float"),
+    "bump_multiplier":             (("baseBumpMapAmount", "bumpAmount"), "float"),
+    "selfIllumination":            (("selfIllumColor", "colorSelfIllum"), "color"),
+    "selfIllumination_multiplier": (("selfIllumLevel", "levelSelfIllum"), "float"),
+}
+
+# 贴图槽精确名（按关键词首词索引，与 TEX_SLOTS_EXACT 同构）
+# 物理材质槽是「贴图 + 开关」两件套（baseTexmap / baseTexmapOn），只挂贴图不置 On 等于没挂，
+# 开关由 tpl_common 的 mfTexmapOn 在落槽后自动置 true。
+CORONA_TEX_SLOTS_EXACT = {
+    "base":      ["baseTexmap", "texmapBase", "texmapDiffuse"],
+    "bump":      ["baseBumpTexmap", "texmapBump", "texmapBumpMap"],
+    "roughness": ["baseRoughnessTexmap", "texmapBaseRoughness", "texmapRoughness"],
+    "opacity":   ["texmapOpacity"],
+}
+
+# Corona 的置换不走材质槽（Corona 材质无 displacement 输入），由收尾段的
+# CoronaDisplacementMod 修改器承担，因此这里不列 __DISPLACE__ / __DISP__。
+_SLOT_MAP_CORONA = {
+    "__DIFFUSE__":   (["base"],      "albedo"),
+    "__HEIGHT__":    (["bump"],      "height"),
+    "__ROUGHNESS__": (["roughness"], "roughness"),
+    "__OPACITY__":   (["opacity"],   "opacity"),
+}
+
+# Corona 的 AO 叠加：CoronaAO 节点自带 colorUnoccluded / colorOccluded，
+# 把漫反射位图接进 colorUnoccluded 即可实现「AO 压暗、原图保留」。
+_AO_BLOCK_CORONA = r'''    (
+        -- AO 叠加（Corona）：把漫反射位图接进 CoronaAO 的 colorUnoccluded，遮挡区域压暗
+        local aoSlot = mfFindSlotEx mtl #("baseTexmap", "texmapBase", "texmapDiffuse") #("base", "diffuse")
+        local baseBm = undefined
+        local dirt = undefined
+        if aoSlot != undefined do (
+            try ( baseBm = getProperty mtl aoSlot ) catch ( baseBm = undefined )
+        )
+        local isCoronaMat = ((findString (toLower ((classof mtl) as string)) "corona") != undefined)
+        if isCoronaMat do (
+            local dirtCls = mfCoronaDirtClass()
+            if dirtCls != undefined do (
+                try ( dirt = dirtCls() ) catch ( dirt = undefined )
+            )
+        )
+        if dirt != undefined then (
+            mfSetOn dirt #("colorUnoccluded", "unoccludedColor") (color 255 255 255)
+            mfSetOn dirt #("colorOccluded", "occludedColor") (color 30 30 30)
+            if baseBm != undefined do (
+                mfSetOn dirt #("texmapUnoccluded", "unoccludedTexmap", "unoccluded") baseBm
+            )
+            if aoSlot != undefined then (
+                try (
+                    setProperty mtl aoSlot dirt
+                    mf_OK += 1
+                    mfLog ("  [OK] AO 已用 " + ((classof dirt) as string) + " 叠加（漫反射贴图保留）")
+                ) catch (
+                    mf_FAIL += 1
+                    mfLog "  [FAIL] AO 挂接失败"
+                )
+            ) else (
+                mfLog "  [WARN] 未找到基色槽，AO 跳过（属可选项降级，不计失败）"
+            )
+        ) else (
+            mfLog ("  [WARN] Corona AO 纹理类不可用（已试 CoronaAO / Corona_AO），AO 未挂接；可手动使用: " + {ao_esc})
+        )
+    )'''
+
+_CORONA_TEMPLATE = (
+    _TPL_HEAD
+    + _TPL_FUNCS
+    + _TPL_CORONA_FNS
+    + _TPL_ENV
+    + _TPL_CORONA_CREATE
+    + _TPL_MID
+    + _TPL_TAIL
+)
 
 
 def build_mscript(
@@ -762,12 +315,14 @@ def build_mscript(
     matlib_path: str = "",
     auto_assign: bool = True,
     logfile_path: str = "",
+    renderer: str = "vray",
 ) -> str:
     """生成完整的 .ms 脚本字符串
 
     vray_props : resolve_vray() 的输出，特殊键 __NORMAL__ / __HEIGHT__ 等为贴图占位
     tex_paths  : {"albedo": "...", "normal": "...", ...}
     auto_assign: 有选中物体时是否自动赋材质（True = 新手友好，导完即见效果）
+    renderer   : "vray" / "corona"，决定属性候选表、贴图槽名、AO 块与模板片段
     """
     # ---- 1. 分离标量 / 贴图占位 / 控制特殊键 ----
     scalars: dict = {}
@@ -780,6 +335,14 @@ def build_mscript(
             specials[k] = v
         else:
             scalars[k] = v
+
+    # ---- 0. 渲染器分派：候选表 / 槽名 / 模板全部按渲染器切换 ----
+    is_corona = str(renderer).lower() == "corona"
+    # 依赖开关与联动表按渲染器切换：V-Ray 的使能开关在 Corona 上不存在
+    on_switch_map = CORONA_PROP_ON_SWITCH if is_corona else PROP_ON_SWITCH
+    follow_map = CORONA_PROP_FOLLOW if is_corona else PROP_FOLLOW
+    targets = CORONA_PROP_TARGETS if is_corona else PROP_TARGETS
+    tex_exact = CORONA_TEX_SLOTS_EXACT if is_corona else TEX_SLOTS_EXACT
 
     # UV 平铺 / 旋转：位图坐标用弧度
     try:
@@ -794,6 +357,15 @@ def build_mscript(
         nb_bump = float(specials.get("__nb_bump_mult__", 0.0) or 0.0)
     except (TypeError, ValueError):
         nb_bump = 0.0
+    # P2：法线层强度独立下发。缺省回落到 bump_multiplier（resolve_vray 里写的是法线强度）
+    try:
+        nb_nstr = float(specials.get("__nb_nstr__", specials.get("bump_multiplier", 1.0)) or 0.0)
+    except (TypeError, ValueError):
+        nb_nstr = 1.0
+    try:
+        nb_bstr = float(specials.get("__nb_bstr__", nb_bump) or 0.0)
+    except (TypeError, ValueError):
+        nb_bstr = nb_bump
 
     # ---- 2. 标量赋值语句 ----
     lines = []
@@ -806,14 +378,14 @@ def build_mscript(
 
     def _cands(k: str) -> tuple[str, ...]:
         """语义键 -> 候选属性名元组；表外键退化为键名本身（保留扩展端口透传能力）"""
-        tgt = PROP_TARGETS.get(str(k))
+        tgt = targets.get(str(k))
         if tgt is not None:
             return tgt[0]
         return (str(k),)
 
     def _norm_value(k: str, v: Any) -> Any:
         """按语义把值转成 V-Ray 侧应有的形态"""
-        tgt = PROP_TARGETS.get(str(k))
+        tgt = targets.get(str(k))
         kind = tgt[1] if tgt is not None else ""
         if kind == "gloss":
             # 语义是粗糙度，而 V-Ray 6 只有 reflection_glossiness（光泽度），需 1-x
@@ -841,22 +413,34 @@ def build_mscript(
 
     def _follow_lines(k: str, v: Any) -> list[str]:
         out: list[str] = []
-        for f in PROP_FOLLOW.get(str(k), ()):
+        for f in follow_map.get(str(k), ()):
             out.append(f'    mfAssign mtl #("{f}") {_ms_value(_norm_value(k, v))}')
         return out
 
-    # 依赖开关必须先写：数值参数只有在其使能开关打开后才会被 V-Ray 采信
+    # 依赖开关必须先写：数值参数只有在其使能开关打开后才会被渲染器采信
+    # 开关值按参数实际取值决定——参数为 0/关时开关写 False，避免「色散=0 但开关亮着」
+    # 这种半开状态（真机核对：Corona 的 dispersionEnable=true 而 dispersion 缺失时，
+    # 渲染结果会回落到默认 40 的观感，与用户设的 0 不一致）。
     emitted: set[str] = set()
-    for k in scalars:
-        for sw_name, sw_val in PROP_ON_SWITCH.get(str(k), {}).items():
+    for k, v in scalars.items():
+        for sw_name, sw_val in on_switch_map.get(str(k), {}).items():
             if sw_name in emitted:
                 continue
+            try:
+                active = bool(float(v))
+            except (TypeError, ValueError):
+                active = bool(v)
             emitted.add(sw_name)
-            lines.append(_assign_line(sw_name, sw_val))
+            lines.append(_assign_line(sw_name, sw_val if active else (not sw_val)))
 
     for k, v in scalars.items():
         if str(k) in PROP_NO_SCALAR:
-            lines.append(f'    mfLog "  [INFO] {k}：{PROP_NO_SCALAR[str(k)]}"')
+            msg = PROP_NO_SCALAR[str(k)]
+            if is_corona:
+                # 真机 Modifier.classes 枚举实证：Corona 置换修改器注册名已本地化为
+                # 「Corona置换修改器」，英文 CoronaDisplacementMod 在本机不存在
+                msg = msg.replace("VRayDisplacementMod", "Corona置换修改器")
+            lines.append(f'    mfLog "  [INFO] {k}：{msg}"')
             continue
         lines.append(_assign_line(k, v))
         lines.extend(_follow_lines(k, v))
@@ -869,14 +453,14 @@ def build_mscript(
 
     def attach_line(kws: list[str], path: str) -> str:
         # 精确属性名优先，关键词兜底（mfFindSlotEx 内部处理）
-        ex = TEX_SLOTS_EXACT.get(kws[0], [])
+        ex = tex_exact.get(kws[0], [])
         kw_str = ", ".join(f'"{k}"' for k in kws)
         ex_str = ", ".join(f'"{k}"' for k in ex)
         return f"    mfAttachTex mtl #({ex_str}) #({kw_str}) {_ms_escape(path)}"
 
     # 法线不走 slot_map：统一由 __NORMALWRAP__ / __NORMALBUMP__ 的 VRayNormalMap 分支处理，
     # 保证 VRayMtl 的凹凸槽里只出现高度图
-    slot_map = {
+    _SLOT_MAP_VRAY = {
         "__DIFFUSE__":   (["diffuse"],      "albedo"),
         "__HEIGHT__":    (["bump"],         "height"),
         "__ROUGHNESS__": (["roughness"],    "roughness"),
@@ -884,6 +468,7 @@ def build_mscript(
         "__OPACITY__":   (["opacity"],      "opacity"),
         "__DISP__":      (["displacement"], "height"),
     }
+    slot_map = _SLOT_MAP_CORONA if is_corona else _SLOT_MAP_VRAY
 
     # 兼容旧数据/直传：__NORMAL__ 的语义是「法线图」，一律转成 VRayNormalMap 包装，
     # 不再直挂 VRayMtl.bump（凹凸槽只允许挂高度图）
@@ -895,12 +480,13 @@ def build_mscript(
     if "__NORMALBUMP__" in tex_specs:
         n_p = tex_paths.get("normal")
         h_p = tex_paths.get("height")
+        _nums = f"{nb_nstr:.4f} {nb_bstr:.4f}"
         if n_p and h_p:
             tex_lines.append(
-                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} {_ms_escape(h_p)}")
+                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} {_ms_escape(h_p)} {_nums}")
         elif n_p:
             tex_lines.append(
-                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} undefined")
+                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} undefined {nb_nstr:.4f} 0.0")
         tex_specs.pop("__NORMALBUMP__", None)
 
     # 仅法线（没有高度图）：同样包一层 VRayNormalMap，bump 子槽留空，
@@ -909,7 +495,7 @@ def build_mscript(
         n_p = tex_paths.get("normal")
         if n_p:
             tex_lines.append(
-                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} undefined")
+                f"    mfAttachNormalBump mtl {_ms_escape(n_p)} undefined {nb_nstr:.4f} 0.0")
         tex_specs.pop("__NORMALWRAP__", None)
 
     # 漫反射不再无条件挂载：由 params.resolve_vray() 在贴图集勾选 albedo 时
@@ -926,7 +512,9 @@ def build_mscript(
 
     # AO：V-Ray 下用 VRayDirt 叠加，原漫反射位图保留在 unoccludedColor
     ao_path = tex_paths.get("ao")
-    if vray_props.get("__activate_ao") and ao_path:
+    if vray_props.get("__activate_ao") and ao_path and is_corona:
+        tex_lines.append(_AO_BLOCK_CORONA.replace("{ao_esc}", _ms_escape(ao_path)))
+    elif vray_props.get("__activate_ao") and ao_path:
         ao_esc = _ms_escape(ao_path)
         tex_lines.append(f'''    (
         -- AO 叠加：仅 V-Ray 材质 + VRayDirt 可用时执行
@@ -978,7 +566,13 @@ def build_mscript(
     texlist = " #(" + ", ".join(_ms_escape(p) for p in tex_paths.values()) + ")"
     matlib = _ms_escape(matlib_path) if matlib_path else '""'
 
-    out = _TEMPLATE
+    out = _CORONA_TEMPLATE if is_corona else _TEMPLATE
+    if is_corona:
+        dropped = vray_props.get("__dropped__") or []
+        if dropped:
+            out = out.replace("@@DROPPED@@", "；".join(str(x) for x in dropped))
+        else:
+            out = out.replace("@@DROPPED@@", "")
     out = out.replace("@@MATNAME@@", material_name.replace('"', ""))
     out = out.replace("@@TIMESTAMP@@", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # 置换修改器参数
@@ -1006,6 +600,15 @@ def build_mscript(
     out = out.replace("@@UVTILE@@", f"{uv_tile:.4f}")
     out = out.replace("@@UVANGLE@@", f"{uv_angle:.4f}")
     out = out.replace("@@NBBUMP@@", f"{nb_bump:.4f}")
+    # 现场版本探测段：内容来自 core/compat.py（版本矩阵的同一份事实来源），
+    # 生成脚本会把 MAX_VERSION / MAX_LANG / ACTIVE_RENDERER / VRAY_AVAILABLE /
+    # CORONA_AVAILABLE / COMPAT_LEVEL 打进日志，让每份真机记录自带版本证据。
+    out = out.replace("@@COMPATPROBE@@", _compat_probe_ms())
+    out = out.replace("@@NBNSTR@@", f"{nb_nstr:.4f}")
+    out = out.replace("@@NBBSTR@@", f"{nb_bstr:.4f}")
+    # 严格模式恒开：校验失败必须计入 FAIL 并让 run_all_checks 判红，
+    # 不提供「关掉严格模式让日志变绿」的开关 —— 那正是假通过的入口。
+    out = out.replace("@@STRICT@@", "true")
     out = out.replace("@@AUTOASSIGN@@", "true" if auto_assign else "false")
     out = out.replace("@@TEXLIST@@", texlist)
     out = out.replace("@@MATLIB@@", matlib)
@@ -1017,7 +620,8 @@ def build_mscript(
 
 def export(material_name: str, vray_props: dict, tex_paths: dict,
            out_dir: str, matlib_path: str = "", auto_assign: bool = True,
-           pack_textures: bool = True, logfile_path: str = "") -> str:
+           pack_textures: bool = True, logfile_path: str = "",
+           renderer: str = "vray") -> str:
     """导出 .ms 文件，返回路径
 
     编码说明：MaxScript 在中文 Windows 上按系统 ANSI（GBK）解析脚本文件，
@@ -1050,7 +654,8 @@ def export(material_name: str, vray_props: dict, tex_paths: dict,
                     # 单张贴图复制失败不影响脚本生成，运行期仍会回退到绝对路径
                     pass
 
-    script = build_mscript(material_name, vray_props, tex_paths, matlib_path, auto_assign, logfile_path)
+    script = build_mscript(material_name, vray_props, tex_paths, matlib_path, auto_assign,
+                           logfile_path, renderer=renderer)
     try:
         with open(path, "w", encoding="gbk", newline="\r\n") as f:
             f.write(script)

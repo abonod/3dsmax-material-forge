@@ -104,7 +104,7 @@
     <!-- 右：参数面板 -->
     <section class="pane pane-right">
       <div class="pane-title">
-        <span>V-Ray 参数</span>
+        <span id="paneTitle">V-Ray 参数</span>
         <div class="seg seg-sm" id="modeSeg">
           <button type="button" data-mode="beginner" class="active">新手</button>
           <button type="button" data-mode="intermediate">中级</button>
@@ -125,6 +125,17 @@
       <div class="presets" id="presets"></div>
 
       <div id="paramPanel" class="panel"></div>
+
+      <div class="field">
+        <label>目标渲染器 <span class="sub-hint">决定生成哪种材质</span></label>
+        <div class="seg seg-sm" id="rendererSeg">
+          <button type="button" data-renderer="vray" class="active">V-Ray</button>
+          <button type="button" data-renderer="corona">Corona</button>
+        </div>
+        <p class="sub-hint" id="rendererHint" style="margin:6px 0 0">
+          V-Ray 出 VRayMtl；两套脚本分别落在带后缀的目录里，互不覆盖
+        </p>
+      </div>
 
       <div class="export-box">
         <button type="button" class="btn ghost" id="btnPreflight" disabled>导出前自检</button>

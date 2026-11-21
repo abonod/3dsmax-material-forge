@@ -12,10 +12,10 @@
 | UV | 2 | 新手（平铺）/ 进阶（旋转、偏移） |
 | 细节 | 9 | 进阶 |
 | 质感 | 9 | 进阶（程序化麻面与区域遮罩） |
-| 表面 | 26 | 进阶 |
+| 表面 | 27 | 进阶 |
 | 进阶 | 6 | 进阶 |
 
-合计 61 项。v0.8.0 新增 9 项：
+合计 62 项。v0.8.0 新增 9 项（v0.9.2 起表面组再拆出 `dispersion_on`，见下）：
 
 | id | 类型 | 作用 |
 |----|------|------|
@@ -24,15 +24,16 @@
 | `sheen_layer_on` | bool | V-Ray Sheen 层开关，布料绒感；开启时一次写 `sheen_amount`/`sheenColor`/`sheenGlossiness` |
 | `thin_film_on` | bool | 薄膜干涉开关；开启时写 `thinFilm_on`/`thinFilmThickness`/`thinFilmIOR` |
 | `thin_film_nm` | range | 薄膜厚度（nm），依赖 `thin_film_on`，肥皂泡 300~450 / 阳极氧化铝 200~600 |
-| `dispersion` | range | 色散，玻璃边缘彩边，依赖 `refraction_on` |
+| `dispersion_on` | bool | 色散开关，关掉时不下发任何色散属性（保留渲染器默认 Corona 40 / V-Ray 50）；开启才写强度并使能 |
+| `dispersion` | range | 色散强度 0~100，玻璃边缘彩边，依赖 `refraction_on` + `dispersion_on`；两端量纲一致（probeF/probeG 实测无钳制） |
 | `energy_preserve` | bool | 一次写 `energyPreservation` + `fixDarkEdges`，压掉过亮和暗边 |
 | `reflection_depth` / `refraction_depth` | int | 反射/折射深度，多层玻璃与镜面互反射 |
 
 面板有三档（v0.8.2 起），默认新手档：
 
-- **新手档**：只渲染 `BEGINNER_IDS` 里的 5 项（`base_color / metal_mode / rough_level / normal_strength / uv_tiling`），其余 56 项折进「中级 + 进阶参数」`<details>` 折叠区。
-- **中级档**：渲染 `BEGINNER_IDS` + `INTERMEDIATE_IDS` = 30 项（日常够用 + 需要时微调），剩下的 31 项进阶参数折进「进阶参数」折叠区。
-- **进阶档**：61 项全平铺，无折叠区。
+- **新手档**：只渲染 `BEGINNER_IDS` 里的 5 项（`base_color / metal_mode / rough_level / normal_strength / uv_tiling`），其余 57 项折进「中级 + 进阶参数」`<details>` 折叠区。
+- **中级档**：渲染 `BEGINNER_IDS` + `INTERMEDIATE_IDS` = 30 项（日常够用 + 需要时微调），剩下的 32 项进阶参数折进「进阶参数」折叠区。
+- **进阶档**：62 项全平铺，无折叠区。
 
 三档划分由后端 `tiers` 字段下发（`beginner` / `intermediate` / `advanced`），前端只负责铺开当前档集合、折叠其余，不再自己猜哪些该露。三档互斥且并集等于全部 61 项，`tier_ids()` 负责切分。
 
@@ -235,6 +236,7 @@ Param(
 | 表面 | `sheen_layer_on` | bool | false | 进阶 |
 | 表面 | `thin_film_on` | bool | false | 进阶 |
 | 表面 | `thin_film_nm` | range | 350 | 进阶 |
+| 表面 | `dispersion_on` | bool | false | 进阶 |
 | 表面 | `dispersion` | range | 5 | 进阶 |
 | 表面 | `energy_preserve` | bool | false | 进阶 |
 | 表面 | `reflection_depth` | int | 5 | 进阶 |

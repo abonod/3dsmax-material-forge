@@ -1,6 +1,6 @@
 # 3ds Max Material Forge
 
-上传一张图 → 程序化推导 PBR 五通道贴图 → 在网页里勾选 V-Ray 参数并实时预览材质球 → 导出一份可直接在 3ds Max 中 `Run Script` 打开的材质脚本。
+上传一张图 → 程序化推导 PBR 五通道贴图 → 在网页里勾选参数并实时预览材质球 → 导出一份可直接在 3ds Max 中 `Run Script` 打开的材质脚本（V-Ray 的 VRayMtl 或 Corona 的 CoronaPhysicalMtl，同一套参数出两版）。
 
 **核心设计约束：整个程序运行期间，不启动、不调用、不依赖 3ds Max 进程。**
 
@@ -11,7 +11,8 @@
 ```
 图片 ──> texture_engine.py ──> albedo / height / normal / roughness / ao （5 张 PNG）
                                      │
-用户勾选 ──> params.py ──> resolve_vray() ──> VRayMtl 属性字典
+用户勾选 ──> params.py ──> resolve_vray()   ──> VRayMtl 属性字典
+                        └─> resolve_corona() ──> CoronaPhysicalMtl 属性字典
                                      │
                                      ▼
                         ms_exporter.py ──> <材质名>.ms （纯文本，GBK/CRLF）
@@ -43,6 +44,22 @@ Python 侧只做三件事：图像推导、参数组织、文本脚本生成。�
 5. **AO 非破坏性叠加** —— 用 `VRayDirt` 包住原漫反射位图（`unoccludedColor = albedo`），不会覆盖已挂的贴图。
 6. **自诊断** —— 执行结束在 MAXScript Listener 打印成功/失败明细与材质类型。
 
+## 3.1 Corona 目标（0.9.0 新增）
+
+导出时选择 `renderer = corona`，同一份 61 参数与贴图会翻译成 Corona 语义：
+
+| 语义 | V-Ray | Corona | 差异原因 |
+|------|-------|--------|----------|
+| 基色 | `diffuse` | `baseColor` | 金属色在 V-Ray 存于 `reflectionColor`，Corona 只有 `baseColor`，需回灌 |
+| 粗糙 | `reflection_glossiness` | `baseRoughness` | 光泽与粗糙方向相反，翻译时取 1−x |
+| 色散 | 数值 + `refraction_dispersion_on` | `refractDispersion` | Corona 无使能开关 |
+| 薄膜 | `thinFilm_on` + 厚度区间 | `baseThinFilmIor` / `baseThinFilmThickness` | 无开关、无区间 |
+| 法线 | `VRay_法线贴图` / `VRayNormalMap` | `CoronaNormal` 包装 | 类名走候选链探测；缺类时法线直挂 bump 并 WARN |
+| AO | `VRay_污垢` | `CoronaAO` | 同上 |
+| 置换 | `VRayDisplacementMod` | `CoronaDisplacementMod` | 按当前渲染器优先 |
+
+未搬过去的参数会汇总成一行 `mfDropped` 日志（如非金属预设的 `reflectionColor`），属于语义等价或 Corona 天然如此，不视为失败。
+
 ## 4. 安装与启动（面向新用户）
 
 ### 4.1 环境要求
@@ -54,6 +71,7 @@ Python 侧只做三件事：图像推导、参数组织、文本脚本生成。�
 | 浏览器 | Chrome / Edge 新版 | 材质球预览依赖 WebGL |
 | 3ds Max | 2024（其他版本一般可用） | 仅在执行 `.ms` 时需要；程序本体全程不依赖 Max 进程 |
 | V-Ray | 6.x（6/7/8 属性名自适应） | 未安装时 `.ms` 自动降级 `PhysicalMaterial` → `StandardMaterial` |
+| Corona | 6+（可选） | 目标渲染器选 Corona 时使用；未安装时降级 `CoronaPhysicalMtl` → `CoronaLegacyMtl` → `PhysicalMaterial` |
 
 Python 依赖（见 `requirements.txt`）：`fastapi` / `uvicorn` / `python-multipart` / `Pillow` / `numpy`。
 

@@ -1,0 +1,16 @@
+MAX_VERSION=26000
+MAX_LANG=zh
+ACTIVE_RENDERER=Corona:Corona
+VRAY_AVAILABLE=present
+CORONA_AVAILABLE=present
+COMPAT_LEVEL=supported
+===== Material Forge 真机探针 =====
+FILEIN corona/mf_overlay_nb_corona.ms -> OK（材质 mf_overlay_nb_corona，贴图槽 3 个，回读失败 0 个）
+FILEIN vray/mf_overlay_nb_vray.ms -> OK（材质 mf_overlay_nb_vray，贴图槽 3 个，回读失败 0 个）
+-----------------------------------
+BIND_MISMATCH=0
+BAD=0
+JOBS_PASS=2/2
+SCRIPT_RUN=1
+VERDICT=OK
+===================================

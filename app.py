@@ -443,6 +443,12 @@ async def run_ai_enhance(payload: dict):
 # 导出
 # ------------------------------------------------------------------
 
+def _resolve_renderer(values: dict, payload: dict) -> str:
+    """解析目标渲染器；非法值一律回落到 vray，保证旧前端不带该字段时行为不变。"""
+    raw = str((payload or {}).get("renderer") or (values or {}).get("renderer") or "vray").strip().lower()
+    return "corona" if raw in ("corona", "cr", "coronamtl") else "vray"
+
+
 @app.post("/api/export")
 async def export(payload: dict):
     """生成 .ms MaxScript + 贴图集，返回产出物绝对路径"""
@@ -453,6 +459,8 @@ async def export(payload: dict):
 
     values = payload.get("values") or {}
     mat_name = (payload.get("material_name") or "MaterialForge").strip() or "MaterialForge"
+    # 渲染器目标：vray / corona。放在最前面解析，目录命名、参数解析、脚本生成三处都要用。
+    renderer = _resolve_renderer(values, payload)
 
     _maybe_purge()
 
@@ -463,6 +471,10 @@ async def export(payload: dict):
     # 后一次的颜色（"同一个 job 导出两个材质，颜色串了"的根因）。
     # 现在一材质一目录，.ms 与它的 textures/ 自成一体，整体拷走即可用。
     safe = export_guard.safe_dirname(mat_name)
+    # 同一材质名分别导 V-Ray / Corona 时目录必须分开，否则 .ms 与贴图互相覆盖。
+    # 用固定子目录而不是给名字直接拼后缀：名字本身叫 xxx_corona 时会拼成 xxx_corona_corona。
+    if renderer == "corona" and not safe.lower().endswith("_corona"):
+        safe = safe + "_corona"
     export_dir = jd / "export" / safe
     export_dir.mkdir(parents=True, exist_ok=True)
 
@@ -481,7 +493,7 @@ async def export(payload: dict):
 
     # 解析参数
     merged_values = {**params.default_values(), **values}
-    vray_props = params.resolve_vray(merged_values)
+    vray_props = params.resolve(merged_values, renderer)
 
     # 基础颜色：把染色烘进 albedo 贴图，Max 里不需要额外挂颜色校正节点。
     # 走 tint_albedo_ex：结果主色 = 色板选色（旧乘法会把亮色整体压暗，
@@ -519,13 +531,14 @@ async def export(payload: dict):
     # 不落任何文件，也不必等到进 Max Run Script 才发现报错。
     try:
         draft = ms_exporter.build_mscript(
-            mat_name, vray_props, final_tex, str(matlib), auto_assign
+            mat_name, vray_props, final_tex, str(matlib), auto_assign, renderer=renderer
         )
     except Exception as e:
         raise HTTPException(500, f"脚本生成失败: {e}")
 
     report = preflight.run(mat_name, draft, final_tex, merged_values,
-                           has_source=job.get("source") is not None)
+                           has_source=job.get("source") is not None,
+                           renderer=renderer)
     if not report["ok"]:
         raise HTTPException(
             400, detail={"msg": "导出前自检未通过，已拦截（未写入任何文件）", "report": report}
@@ -540,6 +553,7 @@ async def export(payload: dict):
             matlib_path=str(matlib),
             auto_assign=auto_assign,
             logfile_path=str(export_dir / f"{safe}.log"),
+            renderer=renderer,
         )
     except Exception as e:
         raise HTTPException(500, f"导出失败: {e}")
@@ -551,6 +565,7 @@ async def export(payload: dict):
             {"material_name": mat_name, "values": merged_values,
              "vray_props": {k: (v if not isinstance(v, tuple) else list(v))
                             for k, v in vray_props.items()},
+             "renderer": renderer,
              "tint": tint_report,
              "solid_mode": job.get("source") is None,
              "textures": {k: Path(v).name for k, v in final_tex.items()}},
@@ -585,6 +600,7 @@ async def export(payload: dict):
         "texture_dir": str(export_dir),
         "texture_subdir": str(tex_out),
         "products": products,
+        "renderer": renderer,
         "report": report,
         "selfcheck": selfcheck,
         "auto_assign": auto_assign,
@@ -602,19 +618,21 @@ async def preflight_api(payload: dict):
 
     values = payload.get("values") or {}
     mat_name = (payload.get("material_name") or "MaterialForge").strip() or "MaterialForge"
+    renderer = _resolve_renderer(values, payload)
     merged_values = {**params.default_values(), **values}
-    vray_props = params.resolve_vray(merged_values)
+    vray_props = params.resolve(merged_values, renderer)
 
     # 校验用「上传阶段的贴图路径」即可，不复制、不染色，纯静态
     try:
         draft = ms_exporter.build_mscript(
-            mat_name, vray_props, dict(job["textures"]), "", True
+            mat_name, vray_props, dict(job["textures"]), "", True, renderer=renderer
         )
     except Exception as e:
         raise HTTPException(500, f"脚本生成失败: {e}")
 
     return preflight.run(mat_name, draft, dict(job["textures"]), merged_values,
-                         preview_only=True, has_source=job.get("source") is not None)
+                         preview_only=True, has_source=job.get("source") is not None,
+                         renderer=renderer)
 
 
 @app.post("/api/open_dir")
