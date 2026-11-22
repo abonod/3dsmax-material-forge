@@ -148,7 +148,9 @@ class CDP:
                       awaitPromise=await_promise, userGesture=True)
         res = r.get("result", {})
         if r.get("exceptionDetails"):
-            raise RuntimeError("JS 异常: %s" % r["exceptionDetails"].get("text"))
+            _ed = r["exceptionDetails"]
+            _desc = ((_ed.get("exception") or {}).get("description") or _ed.get("text") or "")
+            raise RuntimeError("JS 异常: %s" % _desc.splitlines()[0][:200])
         return res.get("value")
 
     def shot(self, path: Path):
@@ -260,7 +262,14 @@ def main() -> int:
         cdp = CDP(ws_url)
         cdp.call("Page.enable")
         cdp.call("Runtime.enable")
-        cdp.call("Page.navigate", url=base)
+        # 关掉静态资源缓存：改了 web/*.js 或 index.html 后若命中 Edge 缓存，
+        # 回归会拿旧前端跑出假阴性（典型症状：接口数据是新的、DOM 结构是旧的）
+        try:
+            cdp.call("Network.enable")
+            cdp.call("Network.setCacheDisabled", cacheDisabled=True)
+        except Exception:
+            pass
+        cdp.call("Page.navigate", url=base + "/?v=%d" % int(time.time()))
 
         # 等参数面板真的渲染出来（schema 到手 + DOM 铺完）
         t0 = time.time()
@@ -310,6 +319,53 @@ def main() -> int:
               "document.querySelectorAll('#presets button').length",
               "=%s 且 >=16" % preset_n,
               lambda v: isinstance(v, int) and preset_n == v and v >= 16)
+        # 族群表自检：预设与族群是同一份数据的两处表达，新增预设时最容易漏归类。
+        # 为什么用 Python 侧校验而不是走页面 JS：这是纯数据约束，不该依赖浏览器上下文；
+        # 只有「chip 过滤后能看到对应数量」才必须走 DOM。
+        if str(SKILL_ROOT) not in sys.path:
+            sys.path.insert(0, str(SKILL_ROOT))
+        try:
+            from core import params as _PARAMS
+            _fiss = _PARAMS.family_issues()
+            _fams = _PARAMS.PRESET_FAMILIES
+        except Exception as _e:
+            _fiss, _fams = ["导入 core.params 失败：%s" % _e], {}
+        _ok = not _fiss
+        checks.append({"item": "预设族群全覆盖无重复", "expect": "无重复/无幽灵键/无漏归类/无缺中文名",
+                       "actual": "无" if _ok else _fiss, "ok": _ok})
+        print("%s %-28s 实际=%-8s 预期=%s"
+              % ("[PASS]" if _ok else "[FAIL]", "预设族群全覆盖无重复",
+                 "无" if _ok else ("%d 处问题" % len(_fiss)), "无重复/无幽灵键/无漏归类/无缺中文名"))
+        for _x in (_fiss or [])[:6]:
+            print("         · %s" % _x)
+
+        # 两轴交互：点族群 chip 后第二轴只剩该族预设，点回「全部」必须复原。
+        # 同步写法（不用 await/sleep）：renderPresets 是同步重绘，点击后立刻可数。
+        fam_filter = cdp.js(
+            "(function(){const fams=%s;"
+            "const chip=fk=>Array.from(document.querySelectorAll('#presetFams button'))"
+            ".find(b=>b.dataset.fam===fk);"
+            "const cnt=()=>document.querySelectorAll('#presets button').length;"
+            "if(chip('all'))chip('all').click();const total=cnt();"
+            "const per={},expect={};"
+            "for(const fk of Object.keys(fams)){expect[fk]=(fams[fk]||[]).length;"
+            "if(!chip(fk)){per[fk]=-1;continue;}"
+            "chip(fk).click();per[fk]=cnt();}"
+            "if(chip('all'))chip('all').click();const back=cnt();"
+            "const chips=document.querySelectorAll('#presetFams button').length;"
+            "return {total:total,back:back,chips:chips,per:per,expect:expect,"
+            "ok:chips===Object.keys(fams).length+1&&back===total&&"
+            "Object.keys(expect).every(fk=>per[fk]===expect[fk])};})()"
+            % json.dumps(_fams, ensure_ascii=False))
+        _fok = isinstance(fam_filter, dict) and bool(fam_filter.get("ok"))
+        checks.append({"item": "族群 chip 过滤与回全",
+                       "expect": "chip=族数+1 且各族按钮数匹配 且点全部可复原",
+                       "actual": fam_filter, "ok": _fok})
+        print("%s %-28s 实际=%-8s 预期=%s"
+              % ("[PASS]" if _fok else "[FAIL]", "族群 chip 过滤与回全",
+                 ("chip=%s 回全=%s" % (fam_filter.get("chips"), fam_filter.get("back")))
+                 if isinstance(fam_filter, dict) else fam_filter,
+                 "chip=族数+1 且各族按钮数匹配 且点全部可复原"))
         check("自检按钮初始禁用", "document.getElementById('btnPreflight').disabled",
               "True", lambda v: v is True)
 

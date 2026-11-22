@@ -1,6 +1,6 @@
 ---
 name: 3dsmax-material-forge
-version: 0.11.2
+version: 0.11.5
 description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 V-Ray 或 Corona 材质脚本（.ms，V-Ray 侧 VRayMtl、Corona 侧 CoronaPhysicalMtl，含属性别名降级、贴图挂接、.mat 落库）。触发场景：用户要求「照这张图做个材质」「这面墙要这种质感」「帮我转成 PBR」「调 VRayMtl 的反射/粗糙度/清漆/凹凸/置换」「批量导出材质脚本」「做个壁纸/墙布/乳胶漆/铝合金(磨砂·拉丝)材质」「拉丝金属的各向异性方向怎么调」「这套材质给我出 Corona 版」「CoronaPhysicalMtl 的 baseRoughness / refractionAmount 怎么对应 V-Ray 参数」，或已有 .ms 在 Max 里执行报错、参数没生效需要按属性名失配排查；也用于扩展该工具（加参数、加属性别名、接 Arnold/Corona）。不用于建模几何体、最终渲染出图、GPU 生成本地贴图。"
 ---
 
@@ -57,7 +57,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 给完全不懂 V-Ray 的人看的操作，只有三步：
 
 1. **拖图** —— 把参考图拖进左栏，五通道贴图自动推导出来（albedo / height / normal / roughness / ao）。
-2. **挑个预设 + 改两个值** —— 默认「新手档」只露 5 项：基础色、金属模式、粗糙档位、法线强度、UV 平铺。挑一个最像的预设（16 个：金属/塑料/水泥/木纹/布料/皮革/瓷砖/玻璃/木地板/地砖/大理石/壁纸/墙布/乳胶漆/铝合金(磨砂)/铝合金(拉丝)），然后只用改「基础色」和「粗糙档位」。想细调就展开底部的「进阶」折叠区，那里是其余 35 项，可以完全不管。
+2. **挑个预设 + 改两个值** —— 默认「新手档」只露 5 项：基础色、金属模式、粗糙档位、法线强度、UV 平铺。挑一个最像的预设（33 个，按 7 个族群分两轴翻：金属 / 石材陶瓷 / 木作 / 织物皮革 / 玻璃亚克力 / 涂料墙面 / 特殊材质），然后只用改「基础色」和「粗糙档位」。想细调就展开底部的「进阶」折叠区，那里是其余 35 项，可以完全不管。
 3. **点「导出前自检」再导出** —— 自检会把「贴图缺失 / 脚本语法 / 编码 / 非法材质名」一次查完，出绿色「自检通过，可以导出」再点导出；红色就是有阻断项，报告卡上会写是哪一项、怎么改。
 
 导出得到两个东西：`.ms` 脚本 + `textures/` 文件夹。两者是**绑定**的——`.ms` 用相对路径找贴图，所以整个 `export/` 目录连同 `textures/` 一起搬走，别只拿 `.ms`。
@@ -256,7 +256,7 @@ python "D:\Marvis skill\3dsmax-material-forge\scripts\verify_ms.py" "<生成的>
 python "D:\Marvis skill\3dsmax-material-forge\scripts\ui_check.py"
 ```
 
-独立端口起服务 + 独立 profile 拉 headless Edge，走 CDP 真实点击，26 项断言覆盖：新手 5 项 / 中级 30 项 / 进阶 61 项 / 三步引导 / 16 个预设逐个快照回填 / 上传后自检按钮解锁 / 贴图通道生成 / 点自检出报告卡（含 V-Ray 环境行）/ 窄屏 1000px 布局（无横向滚动、中列不被压塌、参数控件不溢出、预设按钮不越界、画布仍有面积）/ 预览球真出帧（帧数递增 + 三角形数 + 网格已挂载，挡住「画布在、什么都没画」）。报告落 `scripts/reports/ui_check.json`，截图四张。
+独立端口起服务 + 独立 profile 拉 headless Edge，走 CDP 真实点击，33 项断言覆盖：新手 5 项 / 中级 30 项 / 进阶 62 项 / 三步引导 / 33 个预设逐个快照回填 / 族群 chip 过滤与回全 / 上传后自检按钮解锁 / 贴图通道生成 / 点自检出报告卡（含 V-Ray 环境行）/ 窄屏 1000px 布局（无横向滚动、中列不被压塌、参数控件不溢出、预设按钮不越界、画布仍有面积）/ 预览球真出帧（帧数递增 + 三角形数 + 网格已挂载，挡住「画布在、什么都没画」）。报告落 `scripts/reports/ui_check.json`，截图四张。
 
 **第三道：一条命令全跑（0.8.3 起）**
 
@@ -270,7 +270,7 @@ python "D:\Marvis skill\3dsmax-material-forge\scripts\run_all_checks.py" --fast 
 |--------|------|--------|
 | evals 断言+产物回归 | `evals/runner.py --artifact` | 17 条用例的答案断言 + 8 条产物断言（含材质隔离/自检/三层参数/打包通道探针） |
 | 导出隔离/自检/生命周期 | `scripts/export_guard_check.py` | 33 项行为断言：两材质目录不串、缺图必报、上传 413、TTL 与内存淘汰 |
-| 注册表文档一致 | `scripts/registry_check.py` | 文档与代码的 61 项、分档互斥并集 |
+| 注册表文档一致 | `scripts/registry_check.py` | 文档与代码的 62 项、分档互斥并集 |
 | 贴图元信息与遮罩 | `scripts/proc_mask_check.py` | 20 项：preflight 贴图元信息只留字符串、遮罩尺度参数 |
 | 主界面结构 | `scripts/ui_check.py` | 26 项 CDP 真实点击断言 |
 | 纯色模式像素 | `scripts/ui_solid_check.py` | 18 项纯色模式像素统计断言 |
@@ -359,7 +359,7 @@ output/<job_id>/
 
 **金属反射染色 `metal_tint`**：真实金属反射带色偏（球磨铝暖灰、铜偏橙、钛冷灰）。导出时是 `metal_tint × reflect_strength -> reflectionColor`，**不会顶掉强度层级**，也不改漫反射。默认白=不染色。注意金属的倒影颜色在 three 预览里无法真实体现（three 的金属反射色即 base color），只能看导出后的 V-Ray 结果，这点要如实告知，别宣称预览可见。
 
-**六项进阶通道**（都在「表面」组，默认关闭，只在开启时写非默认值，所以 16 个预设观感零漂移）：
+**六项进阶通道**（都在「表面」组，默认关闭，只在开启时写非默认值，所以 33 个预设观感零漂移）：
 
 | 参数 | 写什么 | 什么时候提 |
 |------|--------|-----------|
@@ -427,7 +427,7 @@ output/<job_id>/
 
 ## 版本与打包
 
-版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.4`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
+版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.5`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
 
 ```
 python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScript 静态体检）→ 打包 → 写清单

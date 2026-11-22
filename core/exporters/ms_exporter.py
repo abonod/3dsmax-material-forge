@@ -58,7 +58,9 @@ PROP_TARGETS: dict[str, tuple[tuple[str, ...], str]] = {
     "reflection_maxDepth":   (("reflection_maxDepth",), "int"),
     "brdf_ior":              (("reflection_ior", "brdf_ior"), "float"),
     "anisotropy":            (("anisotropy",), "float"),
-    "anisotropy_axis":       (("anisotropy_axis",), "int"),
+    # 真机：VRayMtl.anisotropy_axis 是 float（0~1 对应 0~180°）。这里曾误标 int，
+    # 标签虽不参与换算，但会误导后来人补 int() 强转——那会把 0.5（45° 斜纹）截断成 0（横向）。
+    "anisotropy_axis":       (("anisotropy_axis",), "float"),
     "doubleSided":           (("option_doubleSided", "doubleSided"), "bool"),
     # ---- 折射 / 透明 ----
     "refractionColor":       (("Refraction", "refractionColor"), "color"),

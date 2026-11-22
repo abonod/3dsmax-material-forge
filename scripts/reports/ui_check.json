@@ -33,8 +33,43 @@
     },
     {
       "item": "预设按钮数与标签一致",
-      "expect": "=16 且 >=16",
-      "actual": 16,
+      "expect": "=33 且 >=16",
+      "actual": 33,
+      "ok": true
+    },
+    {
+      "item": "预设族群全覆盖无重复",
+      "expect": "无重复/无幽灵键/无漏归类/无缺中文名",
+      "actual": "无",
+      "ok": true
+    },
+    {
+      "item": "族群 chip 过滤与回全",
+      "expect": "chip=族数+1 且各族按钮数匹配 且点全部可复原",
+      "actual": {
+        "total": 33,
+        "back": 33,
+        "chips": 8,
+        "per": {
+          "metal": 8,
+          "stone": 7,
+          "wood": 3,
+          "fabric": 5,
+          "glass": 5,
+          "paint": 3,
+          "special": 2
+        },
+        "expect": {
+          "metal": 8,
+          "stone": 7,
+          "wood": 3,
+          "fabric": 5,
+          "glass": 5,
+          "paint": 3,
+          "special": 2
+        },
+        "ok": true
+      },
       "ok": true
     },
     {
@@ -88,7 +123,7 @@
     {
       "item": "预设逐个快照校验",
       "expect": "全部预设均回填为快照值",
-      "actual": "16/16",
+      "actual": "33/33",
       "ok": true
     },
     {
@@ -172,7 +207,7 @@
     {
       "item": "窄屏预设按钮不溢出",
       "expect": "全部在位且不越界",
-      "actual": "共 16 个 / 越界 0 / 零宽 0",
+      "actual": "共 33 个 / 越界 0 / 零宽 0",
       "ok": true
     },
     {
@@ -184,13 +219,13 @@
     {
       "item": "预览球持续出帧",
       "expect": "0.8s 内帧数增长",
-      "actual": "945 -> 1005",
+      "actual": "2459 -> 2519",
       "ok": true
     },
     {
       "item": "预览球真画出三角形",
       "expect": ">=3000 且网格已挂载",
-      "actual": "51600 三角形 / mesh=True",
+      "actual": "154800 三角形 / mesh=True",
       "ok": true
     }
   ],

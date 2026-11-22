@@ -570,8 +570,11 @@ PRESETS: dict[str, dict] = {
     # 数值基准来源：业内通用 VRayMtl 材质速查表（室内材质参数大全 / 金属材质专题）
     # 换算关系：网参多为「反射灰阶 0~255 + 光泽度」，这里统一折成
     #   reflect_strength = 灰阶/255，reflection_glossiness = 光泽度原值（见 PRESET_EXTRAS）
+    #   例外：金属不套 /255。速查表的「反射 220」是非金属量程写法（220/255≈0.86），
+    #   而 VRayMtl 的金属反射必须满量程 1.0（F0 由 metal_mode + 基础色承担），
+    #   压到 0.86 会让金属发灰发脏，所以 metal 取 reflect_strength=1.0。
 
-    # 金属（不锈钢基准）：漫射近黑、反射 220、光泽 0.9、菲涅尔 IOR 取高值
+    # 金属（不锈钢基准）：漫射近黑、反射 1.0（满量程，速查表 220 见上条例外）、光泽 0.9、菲涅尔 IOR 取高值
     "metal":     {"metal_mode": True,  "rough_level": "glossy", "reflection_on": True,
                   "fresnel_ior": 2.20, "coat_on": False, "normal_on": True,
                   "normal_strength": 0.35, "bump_on": False, "ao_on": True,
@@ -675,11 +678,148 @@ PRESETS: dict[str, dict] = {
                     "ao_on": True, "refraction_on": False, "transparency_on": False,
                     "anisotropy_on": False, "emis_on": False},
     # 铝合金（拉丝）：光泽 0.92 + 各向异性 0.7，高光沿丝纹拉长
+    # 拉丝铝：丝纹方向在 EXTRAS 里显式给 anisotropy_axis=0.0（=沿 U 横向拉丝），不是漏设。
+    # 改纵向拉丝设 1.0，改 45° 斜纹设 0.5，导出写 VRayMtl.anisotropy_axis（0~1 对应 0~180°）
     "alu_brushed": {"metal_mode": True, "rough_level": "semi", "reflection_on": True,
                     "fresnel_ior": 2.05, "coat_on": False, "normal_on": True,
                     "normal_strength": 0.65, "bump_on": False, "ao_on": True,
                     "refraction_on": False, "transparency_on": False,
                     "anisotropy_on": True, "emis_on": False},
+
+    # ---- P0 六材质（纯数据，不新增参数）----
+    # 丝绒/天鹅绒：绒面靠 sheen（缎面档），反射压到 0.06、光泽 0.22，法线做绒头倒伏
+    "velvet":    {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                  "fresnel_ior": 1.44, "coat_on": False, "normal_on": True,
+                  "normal_strength": 1.50, "bump_on": True, "bump_strength": 0.60,
+                  "ao_on": True, "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False,
+                  "sheen_layer_on": True},
+    # 地毯：比丝绒更粗更哑（光泽 0.18、参考灰 10→0.04），绒毛起伏靠强法线 + 高平铺
+    "carpet":    {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                  "fresnel_ior": 1.42, "coat_on": False, "normal_on": True,
+                  "normal_strength": 2.20, "bump_on": True, "bump_strength": 1.00,
+                  "ao_on": True, "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False,
+                  "sheen_layer_on": True},
+    # 磨砂玻璃：折射保留但折射光泽降到 0.35（喷砂把折射方向打散），薄壁开
+    "frosted_glass": {"metal_mode": False, "rough_level": "semi", "reflection_on": True,
+                      "fresnel_ior": 1.52, "coat_on": False, "normal_on": True,
+                      "normal_strength": 0.15, "bump_on": False, "ao_on": False,
+                      "refraction_on": True, "refraction_glossiness": 0.35,
+                      "thin_wall_on": True,
+                      "transparency_on": False, "anisotropy_on": False, "emis_on": False},
+    # 有色玻璃：体色靠雾化（fog）而非表面染色——表面染色会把高光一起染绿
+    "tinted_glass": {"metal_mode": False, "rough_level": "mirror", "reflection_on": True,
+                     "fresnel_ior": 1.52, "coat_on": False, "normal_on": False,
+                     "normal_strength": 0.0, "bump_on": False, "ao_on": False,
+                     "refraction_on": True, "refraction_glossiness": 1.0,
+                     "dispersion_on": True, "dispersion": 3.0,
+                     "thin_wall_on": True, "fog_on": True,
+                     "transparency_on": False, "anisotropy_on": False, "emis_on": False},
+    # 黄铜：金属 + 暖黄染色（#c9a227），光泽 0.75 留一点抛光痕
+    "brass":     {"metal_mode": True, "rough_level": "semi", "reflection_on": True,
+                  "fresnel_ior": 2.10, "coat_on": False, "normal_on": True,
+                  "normal_strength": 0.25, "bump_on": False, "ao_on": True,
+                  "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False},
+    # 发光灯箱：软膜面（漫射、反射 0.12）+ 自发光白色，强度 3.0 起步
+    "lightbox":  {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                  "fresnel_ior": 1.46, "coat_on": False, "normal_on": True,
+                  "normal_strength": 0.20, "bump_on": False, "ao_on": False,
+                  "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "thin_wall_on": True,
+                  "emis_on": True},
+
+    # ---- P1 七材质（组合型：靠既有参数的组合表达，不新增参数）----
+    # 镜面：反射拉满、光泽 0.99，法线全关——镜面有任何凹凸都会把反射搅花
+    "mirror":    {"metal_mode": True, "rough_level": "mirror", "reflection_on": True,
+                  "fresnel_ior": 2.50, "coat_on": False, "normal_on": False,
+                  "normal_strength": 0.0, "bump_on": False, "ao_on": False,
+                  "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False},
+    # 拉丝不锈钢：比铝合金更亮更冷（灰 230→0.90、光泽 0.82），各向异性沿 U 出长高光
+    "stainless_brushed": {"metal_mode": True, "rough_level": "semi", "reflection_on": True,
+                          "fresnel_ior": 2.15, "coat_on": False, "normal_on": True,
+                          "normal_strength": 0.45, "bump_on": False, "ao_on": True,
+                          "refraction_on": False, "transparency_on": False,
+                          "anisotropy_on": True, "emis_on": False},
+    # 水：IOR 1.333、折射光泽 1，靠法线做波纹，薄壁开避免体积吸收把水做成墨绿；
+    #   淡色雾化只给大体积水面一点通透感，淡到近无
+    "water":     {"metal_mode": False, "rough_level": "mirror", "reflection_on": True,
+                  "fresnel_ior": 1.33, "coat_on": False, "normal_on": True,
+                  "normal_strength": 0.35, "bump_on": False, "ao_on": False,
+                  "refraction_on": True, "refraction_glossiness": 1.0,
+                  "dispersion_on": True, "dispersion": 2.0,
+                  "thin_wall_on": True, "fog_on": True,
+                  "transparency_on": False, "anisotropy_on": False, "emis_on": False},
+    # 亚克力透光板（乳白导光）：折射 + 白雾化做「内部散射发白」，
+    #   不开透明度通道——那是整片均匀半透，没有板厚方向的浓淡变化
+    "acrylic_light": {"metal_mode": False, "rough_level": "semi", "reflection_on": True,
+                      "fresnel_ior": 1.49, "coat_on": False, "normal_on": False,
+                      "normal_strength": 0.0, "bump_on": False, "ao_on": False,
+                      "refraction_on": True, "refraction_glossiness": 0.98,
+                      "thin_wall_on": True, "fog_on": True,
+                      "transparency_on": False, "anisotropy_on": False, "emis_on": False},
+    # 麂皮：丝绒的近亲但更哑更绒（灰 13→0.05、光泽 0.20），sheen 走 matte（无缎面方向感）
+    "suede":     {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                  "fresnel_ior": 1.45, "coat_on": False, "normal_on": True,
+                  "normal_strength": 1.70, "bump_on": True, "bump_strength": 0.80,
+                  "ao_on": True, "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False,
+                  "sheen_layer_on": True},
+    # 未上漆原木：无清漆（coat 关）、反射灰 26→0.10、光泽 0.30，木纤维起伏靠法线
+    "raw_wood":  {"metal_mode": False, "rough_level": "semi", "reflection_on": True,
+                  "fresnel_ior": 1.50, "coat_on": False, "normal_on": True,
+                  "normal_strength": 1.40, "bump_on": True, "bump_strength": 0.50,
+                  "ao_on": True, "refraction_on": False, "transparency_on": False,
+                  "anisotropy_on": False, "emis_on": False},
+    # 微水泥：灰 35→0.14、光泽 0.28（有轻微收光但不反光）。
+    #   质感本该来自程序化抹面（stucco），但 proc_on=True 暂不开启，原因实测：
+    #   上传后前端会立刻按当前面板烤一次 /api/build，而该路由是 async def 内直接跑
+    #   同步的 CPU 密集重算（1024px 全套通道），期间 uvicorn 事件循环被占死，
+    #   6 张通道图的 GET /files 全部排队，表现为「缩略图不显示、自检按钮 30s 不解锁」。
+    #   proc_* 数值保留在下面，服务端改为线程池执行后把 proc_on 改 True 即可生效。
+    "microcement": {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                    "fresnel_ior": 1.46, "coat_on": False, "normal_on": True,
+                    "normal_strength": 1.20, "bump_on": True, "bump_strength": 0.35,
+                    "ao_on": True, "refraction_on": False, "transparency_on": False,
+                    "anisotropy_on": False, "emis_on": False,
+                    "proc_on": False, "proc_type": "stucco", "proc_scale": 2.0,
+                    "proc_amount": 0.50, "proc_rough": 0.50, "proc_albedo": 0.05,
+                    "proc_mask": 0.70, "proc_mask_scale": 1.6},
+
+    # ---- P2 四材质（含首次启用的 SSS / 透明度 / 各向异性组合）----
+    # 文化石 / 砌砖墙：石面起伏靠法线与凹凸，AO 收缝做砖缝暗部；
+    #   要做砌砖墙只需把 EXTRAS 里的 UV 平铺加到 3.0（砖缝更密），参数完全通用
+    "stone_cladding": {"metal_mode": False, "rough_level": "matte", "reflection_on": True,
+                       "fresnel_ior": 1.52, "coat_on": False, "normal_on": True,
+                       "normal_strength": 1.60, "bump_on": True, "bump_strength": 0.55,
+                       "ao_on": True, "refraction_on": False, "transparency_on": False,
+                       "anisotropy_on": False, "emis_on": False},
+    # 镂空铁艺 / 纱帘：黑铁 + 高反射；镂空靠贴图集的「透明度」通道，
+    #   故 opacity_on 默认关（无透明度贴图时开着会被导出前自检判为阻断）
+    "iron_lattice": {"metal_mode": True, "rough_level": "glossy", "reflection_on": True,
+                     "fresnel_ior": 2.50, "coat_on": False, "normal_on": True,
+                     "normal_strength": 0.80, "bump_on": True, "bump_strength": 0.20,
+                     "ao_on": True, "refraction_on": False, "transparency_on": False,
+                     "anisotropy_on": False, "emis_on": False,
+                     "opacity_on": False, "opacity_cutoff": 0.5},
+    # 阳极氧化铝：氧化膜把反射压成半亮，挤压纹用轻微各向异性表达
+    "anodized_alu": {"metal_mode": True, "rough_level": "semi", "reflection_on": True,
+                     "fresnel_ior": 3.00, "coat_on": False, "normal_on": True,
+                     "normal_strength": 0.55, "bump_on": True, "bump_strength": 0.15,
+                     "ao_on": True, "refraction_on": False, "transparency_on": False,
+                     "anisotropy_on": True, "anisotropy_axis": 0.0, "emis_on": False},
+    # 玉石 / 灯罩布：透光石走 SSS（V-Ray 真机已核：translucency_on / translucency_amount /
+    #   translucency_thickness 三属性存在，Corona 侧落在 levelTranslucency / sssRadius）；
+    #   换成灯罩布就把 sss_amount 降到 0.20、关 refraction_on、开 thin_wall_on
+    "jade": {"metal_mode": False, "rough_level": "glossy", "reflection_on": True,
+             "fresnel_ior": 1.55, "coat_on": False, "normal_on": True,
+             "normal_strength": 0.35, "bump_on": True, "bump_strength": 0.10,
+             "ao_on": True, "refraction_on": True, "transparency_on": False,
+             "anisotropy_on": False, "emis_on": False,
+             "sss_on": True, "sss_amount": 0.45, "sss_radius": 2.0,
+             "fog_on": True},
 }
 
 # 新手模式暴露的参数（61 项里只留 5 项）
@@ -733,7 +873,56 @@ PRESET_LABELS: dict[str, str] = {
     "wood_floor": "木地板", "floor_tile": "地砖", "marble": "大理石",
     "wallpaper": "壁纸", "wallcloth": "墙布", "latex_paint": "乳胶漆",
     "alu_frosted": "铝合金(磨砂)", "alu_brushed": "铝合金(拉丝)",
+    "velvet": "丝绒(天鹅绒)", "carpet": "地毯", "frosted_glass": "磨砂玻璃",
+    "tinted_glass": "有色玻璃", "brass": "黄铜", "lightbox": "发光灯箱",
+    "mirror": "镜面", "stainless_brushed": "拉丝不锈钢", "water": "水",
+    "acrylic_light": "亚克力透光板", "suede": "麂皮", "raw_wood": "未上漆原木",
+    "microcement": "微水泥",
+    "stone_cladding": "文化石/砌砖墙", "iron_lattice": "镂空铁艺/纱帘",
+    "anodized_alu": "阳极氧化铝", "jade": "玉石/灯罩布",
 }
+
+# 预设的两轴族群（第一轴）：33 个预设平铺已经超出两行，按材质族收进 chip 组
+# 为什么要后端出这张表而不是前端硬编码：族群与 PRESETS 一旦漂移，
+#   就会出现「某个预设在任何族里都找不到」的静默丢失；这里用运行时校验保证全覆盖。
+PRESET_FAMILIES: dict[str, list[str]] = {
+    # 金属：需要 metal_mode=True 的一族
+    "metal": ["metal", "brass", "mirror", "stainless_brushed",
+              "alu_frosted", "alu_brushed", "anodized_alu", "iron_lattice"],
+    # 石材 / 陶瓷：水泥、砖石、瓷砖、大理石、微水泥、透光玉石
+    "stone": ["concrete", "stone_cladding", "tile", "floor_tile",
+              "marble", "microcement", "jade"],
+    "wood": ["wood", "wood_floor", "raw_wood"],
+    "fabric": ["fabric", "leather", "velvet", "suede", "carpet"],
+    "glass": ["glass", "frosted_glass", "tinted_glass", "acrylic_light", "water"],
+    "paint": ["latex_paint", "wallpaper", "wallcloth"],
+    "special": ["plastic", "lightbox"],
+}
+
+PRESET_FAMILY_LABELS: dict[str, str] = {
+    "metal": "金属", "stone": "石材陶瓷", "wood": "木作", "fabric": "织物皮革",
+    "glass": "玻璃亚克力", "paint": "涂料墙面", "special": "特殊材质",
+}
+
+
+def family_issues() -> list[str]:
+    """族群表自检：返回问题清单，空列表表示「每个预设恰好属于一个族」"""
+    seen: dict[str, str] = {}
+    issues: list[str] = []
+    for fk, keys in PRESET_FAMILIES.items():
+        if fk not in PRESET_FAMILY_LABELS:
+            issues.append(f"族 {fk} 缺中文名")
+        for k in keys:
+            if k not in PRESETS:
+                issues.append(f"族 {fk} 引用了不存在的预设 {k}")
+            elif k in seen:
+                issues.append(f"预设 {k} 同时属于 {seen[k]} 与 {fk}")
+            else:
+                seen[k] = fk
+    for k in PRESETS:
+        if k not in seen:
+            issues.append(f"预设 {k} 未归入任何族")
+    return issues
 
 # 预设的专业补充值
 # 为什么单独放一张表：上方 PRESETS 只表达「这本预设大致是什么」，
@@ -741,7 +930,8 @@ PRESET_LABELS: dict[str, str] = {
 # 这类决定观感的数值写死。默认值服务于通用场景，不该被当成材质语义。
 PRESET_EXTRAS: dict[str, dict] = {
     # 全部走 gloss_mode（reflection_glossiness 通道），数值直接对应网参「光泽度」
-    # metal 不锈钢：光泽 0.9 / 反射 220→1.0
+    # metal 不锈钢：光泽 0.9 / 反射 1.0 —— 速查表 220 属非金属量程（≈0.86），
+    # 金属反射量在 VRayMtl 里取满量程、F0 由 metal_mode + 基础色定，故不做 /255 换算
     "metal":      {"gloss_mode": True, "reflection_glossiness": 0.90, "reflect_strength": 1.00},
     # plastic：光泽 0.95 折 0.92（V-Ray 下 0.95 以上易出噪点），反射衰减→0.90
     "plastic":    {"gloss_mode": True, "reflection_glossiness": 0.92, "reflect_strength": 0.90,
@@ -790,6 +980,67 @@ PRESET_EXTRAS: dict[str, dict] = {
     "alu_brushed": {"gloss_mode": True, "reflection_glossiness": 0.88, "reflect_strength": 0.90,
                     "uv_tiling": 2.0, "metal_tint": "#f0f2f5",
                     "anisotropy_amount": 0.72, "anisotropy_axis": 0.0},
+
+    # ---- P0 六材质补充值 ----
+    # velvet：灰 15→0.06、光泽 0.22，sheen 取 satin（顺毛方向有明显缎光带），平铺 4
+    "velvet":     {"gloss_mode": True, "reflection_glossiness": 0.22, "reflect_strength": 0.06,
+                   "sheen_tier": "satin", "uv_tiling": 4.0},
+    # carpet：灰 10→0.04、光泽 0.18，sheen matte（无方向感），平铺 8 让绒毛可辨
+    "carpet":     {"gloss_mode": True, "reflection_glossiness": 0.18, "reflect_strength": 0.04,
+                   "sheen_tier": "matte", "uv_tiling": 8.0},
+    # frosted_glass：折射光泽 0.35 是磨砂的关键，光泽/反射适当压低
+    "frosted_glass": {"gloss_mode": True, "reflection_glossiness": 0.70, "reflect_strength": 0.50,
+                      "refraction_glossiness": 0.35, "uv_tiling": 1.0},
+    # tinted_glass：灰绿体色 fog 0.35 + 色散 3.0（厚边出彩边）
+    "tinted_glass": {"gloss_mode": True, "reflection_glossiness": 0.99, "reflect_strength": 1.00,
+                     "refraction_glossiness": 1.0, "uv_tiling": 1.0,
+                     "fog_amount": 0.35, "fog_color": "#7fa89a", "dispersion": 3.0},
+    # brass：暖黄 #c9a227，灰 210→0.82、光泽 0.75
+    "brass":      {"gloss_mode": True, "reflection_glossiness": 0.75, "reflect_strength": 0.82,
+                   "uv_tiling": 1.0, "metal_tint": "#c9a227"},
+    # lightbox：灰 30→0.12，光泽 0.25（软膜是漫射面），自发光白色强度 3.0 起步
+    "lightbox":   {"gloss_mode": True, "reflection_glossiness": 0.25, "reflect_strength": 0.12,
+                   "uv_tiling": 1.0, "emis_color": "#ffffff", "emis_strength": 3.0},
+
+    # ---- P1 七材质补充值 ----
+    # mirror：反射 1.0、光泽 0.99（不给 1.0，V-Ray 下 1.0 会走完美镜面分支，抗锯齿反而硬）
+    "mirror":     {"gloss_mode": True, "reflection_glossiness": 0.99, "reflect_strength": 1.00,
+                   "uv_tiling": 1.0},
+    # stainless_brushed：灰 230→0.90，光泽 0.82；冷白染色 + 各向异性 0.65 沿 U 拉长
+    "stainless_brushed": {"gloss_mode": True, "reflection_glossiness": 0.82,
+                          "reflect_strength": 0.90, "uv_tiling": 2.0,
+                          "metal_tint": "#e6e8ea",
+                          "anisotropy_amount": 0.65, "anisotropy_axis": 0.0},
+    # water：反射 1.0 / 折射光泽 1.0，雾化 0.18 淡青（近岸水色），平铺 1.5 让波纹不重复
+    "water":      {"gloss_mode": True, "reflection_glossiness": 0.99, "reflect_strength": 1.00,
+                   "refraction_glossiness": 1.0, "uv_tiling": 1.5,
+                   "fog_amount": 0.18, "fog_color": "#a8c8c0", "dispersion": 2.0},
+    # acrylic_light：反射 0.55（亚克力有亮面高光但不抢），白雾化 0.30 做乳白导光
+    "acrylic_light": {"gloss_mode": True, "reflection_glossiness": 0.90,
+                      "reflect_strength": 0.55, "refraction_glossiness": 0.98,
+                      "uv_tiling": 1.0, "fog_amount": 0.30, "fog_color": "#f4f6f2"},
+    # suede：灰 13→0.05、光泽 0.20，sheen matte，绒面细密平铺 3
+    "suede":      {"gloss_mode": True, "reflection_glossiness": 0.20, "reflect_strength": 0.05,
+                   "sheen_tier": "matte", "uv_tiling": 3.0},
+    # raw_wood：灰 26→0.10、光泽 0.30，木纹沿长边平铺 1.2
+    "raw_wood":   {"gloss_mode": True, "reflection_glossiness": 0.30, "reflect_strength": 0.10,
+                   "uv_tiling": 1.2},
+    # microcement：灰 35→0.14、光泽 0.28（收光不反光），平铺 2 让抹面弧痕不重复
+    "microcement": {"gloss_mode": True, "reflection_glossiness": 0.28, "reflect_strength": 0.14,
+                    "uv_tiling": 2.0},
+    # stone_cladding：灰 22→0.08（石质几乎不反光）、光泽 0.15（哑面收光），平铺 2 防石纹重复
+    "stone_cladding": {"gloss_mode": True, "reflection_glossiness": 0.15, "reflect_strength": 0.08,
+                       "uv_tiling": 2.0},
+    # iron_lattice：黑铁灰 45→0.40、光泽 0.62（锻造铁半光泽），沿长向平铺 1
+    "iron_lattice":   {"gloss_mode": True, "reflection_glossiness": 0.62, "reflect_strength": 0.40,
+                       "uv_tiling": 1.0, "metal_tint": "#2b2b2e"},
+    # anodized_alu：氧化膜灰 96→0.72、光泽 0.55（半亮），各向异性 0.35 表达挤压纹
+    "anodized_alu":   {"gloss_mode": True, "reflection_glossiness": 0.55, "reflect_strength": 0.72,
+                       "uv_tiling": 1.5, "metal_tint": "#3a4a5a", "anisotropy_amount": 0.35},
+    # jade：翡翠半透，灰 30→0.12、光泽 0.45（抛光石），折射带一点柔化避免假玻璃感
+    "jade":           {"gloss_mode": True, "reflection_glossiness": 0.45, "reflect_strength": 0.12,
+                       "refraction_glossiness": 0.90, "uv_tiling": 1.0,
+                       "fog_amount": 0.18, "fog_color": "#eaf3e6"},
 }
 
 
@@ -838,6 +1089,9 @@ def schema() -> dict:
         # 完整快照：套预设 = 整体替换，不再依赖「默认值恰好合适」
         "preset_full": preset_snapshots(),
         "preset_labels": PRESET_LABELS,
+        # 两轴族群：第一轴族群 → 第二轴该族下的预设（顺序即按钮顺序）
+        "preset_families": PRESET_FAMILIES,
+        "preset_family_labels": PRESET_FAMILY_LABELS,
         # 新手模式只露这几项（其余收进「进阶参数」折叠区）
         "beginner_ids": BEGINNER_IDS,
         "intermediate_ids": INTERMEDIATE_IDS,

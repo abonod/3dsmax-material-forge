@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.11.4"
+__version__ = "0.11.5"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
 # 别名：scripts/docs_sync.py 用 getattr(V, "VERSION", "") 取版本号回写文档。
 # 这里必须有同名常量，否则取到空串，文档里的版本号会被写成「当前 」（静默清空而非报错）。
@@ -22,6 +22,15 @@ VERSION = __version__
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.11.5": [
+        "【预设扩容·16 → 33】新增 17 个预设，分三批落地：P0 六个纯数据（丝绒/天鹅绒、地毯、磨砂玻璃、有色玻璃、黄铜/紫铜、灯箱/发光软膜）只复用既有 62 参数；P1 七个组合（镜面、拉丝不锈钢、水、亚克力透光板、麂皮、未上漆原木、微水泥）靠既有参数组合出观感；P2 四个（文化石/砌砖墙、镂空铁艺/纱帘、阳极氧化铝、玉石/灯罩布）启用此前 35 个从未被预设使用的 sss_on / anisotropy_on / fog_on 等通道。三表 PRESETS / PRESET_LABELS / PRESET_EXTRAS 同键同序，导出端属性候选链无需改动",
+        "【UI·两轴族群 chip】33 个预设平铺会挤成三四行且找不到目标，改为两轴：第一轴 PRESET_FAMILIES 七族（金属 / 石材陶瓷 / 木作 / 织物皮革 / 玻璃亚克力 / 涂料墙面 / 特殊材质）+「全部」，第二轴按族过滤预设按钮。family_issues() 自检无重复归族、无幽灵键、无漏归类、无缺中文名；schema 下发 preset_families / preset_family_labels，前端只负责渲染不猜分组",
+        "【中·注释与实现不一致·metal 反射】速查表的「反射 220」与实现值 reflect_strength=1.0 长期并列存在，读者无从判断谁对。核实后确认两条都成立但语义不同：220/255≈0.86 属非金属反射量程写法，VRayMtl 的金属反射必须满量程（F0 由 metal_mode + 基础色承担），压到 0.86 会让金属发灰发脏。注释改为显式写明这条例外，数据不动",
+        "【中·注释与实现不一致·拉丝方向】alu_brushed 开了 anisotropy_on 但 anisotropy_axis=0.0 无任何说明，看起来像漏设。0.0 本身是合法且明确的语义（沿 U 横向拉丝），已补注释写清 0=横向 / 0.5=斜 45° / 1=纵向，以及导出写 VRayMtl.anisotropy_axis（0~1 对应 0~180°）",
+        "【中·类型标签误导·anisotropy_axis】ms_exporter.PROP_TARGETS 把 anisotropy_axis 标成 int（真机是 float）。标签当前不参与换算，故没有实际输出错误，但会诱导后来人补 int() 强转——那会把 0.5（45° 斜纹）截断成 0（横向）。已改 float 并注明缘由",
+        "【回归门禁·ui_check 假阴性根因】改了 web/*.js 后 UI 回归仍拿旧前端跑：静态资源命中 Edge 缓存，接口数据是新的、DOM 结构是旧的（表现为 33 个预设按钮正常但族 chip 数为 0）。已在导航前 Network.setCacheDisabled + URL 加版本戳，断言从 31 项扩到 33 项",
+        "实测：66 个 .ms（33 预设 × V-Ray/Corona）verify_ms 静态体检 66/66 通过；ui_check 33/33 通过；run_all_checks 15 项全 PASS；registry_check 与 docs_sync 文档数字口径一致（61 项 → 62 项、16 预设 → 33 预设、26 断言 → 33 断言）",
+    ],
     "0.11.4": [
         "【新功能·一键送进 Max】新增 core/max_bridge.py 与 scripts/mf_max_listener.ms：导出后不再靠用户手动 Scripting → Run Script 找文件，界面点「送进 Max」即可让本机 3ds Max 直接执行刚导出的 .ms。机制是磁盘 inbox 协议——Python 侧写清单（token + sha256 + 产物路径），Max 侧监听器 400ms 轮询、逐项校验 token 与哈希后 fileIn，再写回执与心跳；listener 未启动、心跳过期、哈希不符、越权路径一律明确失败而不是假装成功。安全边界：只接受 OUTPUT 目录下的 .ms，路径白名单之外的请求直接拒绝；剪贴板 fallback 作为 MCP 不可用时的降级通路。真机实测：Python 与 Max 两侧 sha256 一致（d55bedc…ad4a），回执 ok=True「已在 Max 里执行：自检_磁盘.ms」，Max 内 sceneMaterials 由 2 增至 3 且新增名为「自检_磁盘/VRayMtl」的材质，端到端链路打通",
         "【真机缺陷·listener 热重载竞态】同一 Max 会话里再次 fileIn listener 时，旧 timer 仍在 Tick，撞上新脚本的函数重定义，报「类型错误: 调用需要函数或类」，监听器直接死掉。改为脚本头先停旧 timer（mfMBStop）再注册，重复装载幂等",

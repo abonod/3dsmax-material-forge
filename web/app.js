@@ -899,17 +899,47 @@ function syncTexDeps() {
 
 function renderPresets() {
   const box = $("presets");
+  const famBox = $("presetFams");
   const names = S.schema.preset_labels || {};
-  // 用后端的完整快照而不是稀疏预设：套用 = 整体替换，
-  // 不再依赖「默认值恰好符合该材质」，也不会把上个预设的开关残留过来
   const snaps = S.schema.preset_full || S.schema.presets || {};
+  const fams = S.schema.preset_families || {};
+  const famLabels = S.schema.preset_family_labels || {};
+  // 第一轴默认「全部」：既是总览入口，也保证预设按钮默认全量存在于 DOM
+  if (!S.presetFam) S.presetFam = "all";
+  const famOf = {};
+  for (const [fk, keys] of Object.entries(fams)) {
+    (keys || []).forEach((k) => { famOf[k] = fk; });
+  }
+
   box.innerHTML = "";
+  if (famBox) famBox.innerHTML = "";
+
+  // 第一轴：族群 chip
+  if (famBox) {
+    const mkFam = (fk, label) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.dataset.fam = fk;
+      if (fk === S.presetFam) b.classList.add("active");
+      b.addEventListener("click", () => { S.presetFam = fk; renderPresets(); });
+      famBox.appendChild(b);
+    };
+    mkFam("all", "全部");
+    for (const fk of Object.keys(fams)) mkFam(fk, famLabels[fk] || fk);
+  }
+
+  // 第二轴：该族下的预设按钮
   for (const [key, vals] of Object.entries(snaps)) {
+    if (S.presetFam !== "all" && famOf[key] !== S.presetFam) continue;
     const b = document.createElement("button");
     b.textContent = names[key] || key;
+    b.dataset.key = key;
     b.title = "套用整套参数快照（覆盖全部 " + Object.keys(vals).length + " 项）";
+    if (S.presetKey === key) b.classList.add("active");
     b.addEventListener("click", () => {
       S.values = { ...S.defaults, ...vals, base_color: S.values.base_color || "#ffffff" };
+      S.presetKey = key;
       renderPanel();
       syncColorUI(null);
       updateMaterial();
@@ -919,7 +949,7 @@ function renderPresets() {
     });
     box.appendChild(b);
   }
-}
+}
 
 /* ==================================================================
  * 贴图集缩略
