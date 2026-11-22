@@ -141,6 +141,35 @@ PARAMS: list[Param] = [
         vray_prop="bump_multiplier",
         three={"bumpScale": "value"},
     ),
+    # ---- 0.12.0 新增三通道贴图开关 ----
+    # 为什么必须是贴图、而不是继续加标量参数：
+    #   ① Corona 物理材质**没有标量金属度**（只有 metalnessMode 0/1 + metalnessTexmap），
+    #      0.3/0.7 这种中间值在 Corona 上只能二值化——磨损露底材这类需求根本表达不出来；
+    #   ② 自发光只有颜色+强度是整块均匀亮，做不出灯箱/灯带「局部发光」；
+    #   ③ 绒面 sheenAmount 是标量，褶皱处更绒、压平处更亮只能靠分布图。
+    # 开关一律默认关闭：主流需求（乳胶漆/木纹/瓷砖）用不到，多三张图只是白白占盘。
+    Param(
+        id="metalness_tex_on", label="金属度贴图", group="细节", ptype="bool", default=False,
+        help="把金属度做成贴图，表达 0~1 的中间值（磨损露底材、斑驳氧化）。"
+             "Corona 物理材质没有标量金属度，只有这张贴图能救回中间值",
+        vray_on={"texmap_metalness": "__METALNESS__"},
+        three={"metalnessMap": True},
+    ),
+    Param(
+        id="emissive_tex_on", label="自发光贴图", group="表面", ptype="bool", default=False,
+        depends={"emis_on": True},
+        help="局部发光（灯箱/灯带/发光字）：发光颜色与强度仍由「自发光」控制，贴图只决定哪里亮",
+        # vray_on 留空：占位符在 resolve_vray 里按 emis_on 门控下发，
+        # 挂在这里会绕过门控——没开自发光也给一张不亮的灯。
+        vray_on={},
+        three={"emissiveMap": True},
+    ),
+    Param(
+        id="sheen_tex_on", label="绒面贴图", group="表面", ptype="bool", default=False,
+        help="绒面/布料的边缘绒光分布（褶皱处更绒、压平处更亮）；槽位名未经真机确认时记 SKIP 不报错",
+        vray_on={"texmap_sheen": "__SHEEN__"},
+        three={"sheenColorMap": True},
+    ),
     Param(
         id="nb_overlay", label="法线+凹凸叠加", group="细节", ptype="bool", default=True,
         depends={"bump_on": True},
@@ -1210,6 +1239,13 @@ def resolve_vray(values: dict) -> dict:
     if tex_on("roughness"):
         out["texmap_roughness"] = "__ROUGHNESS__"
 
+    # ---- 0.12.0：自发光贴图（唯一需要门控的新通道）----
+    # 金属度 / 绒面的占位符由各自 Param.vray_on 在 PARAMS 循环里下发，这里不重复写；
+    # 自发光必须额外看 emis_on：没开自发光却挂发光贴图，等于给一个不亮的灯，
+    # 用户会在 Max 里看到一张贴图而画面全黑，比不挂更难排查。
+    if ev.get("emissive_tex_on", False) and ev.get("emis_on", False):
+        out["texmap_self_illumination"] = "__EMISSIVE__"
+
     # 法线与凹凸共用 VRayMtl 的 bump 槽：凹凸优先，其次法线；都关则不写强度
     if ev.get("bump_on", False):
         out["bump_multiplier"] = float(ev.get("bump_strength", 0.6) or 0.0)
@@ -1483,11 +1519,20 @@ def resolve_corona(values: dict) -> dict:
     # 真机核对：CoronaPhysicalMtl 的金属度是 metalnessMode（0=非金属 / 1=金属，整数模式开关）
     # 加 metalnessTexmap，**没有标量金属度属性**。所以 0.3、0.7 这类中间值无法精确表达，
     # 只能按 0.5 阈值二值化；需要真实中间金属度只能靠金属度贴图（metallic 通道）。
+    # 0.12.0：二值化本身无法避免，但**必须说出来**。旧实现静默改值——用户调 0.7
+    # 拿到的是 1.0（全金属），界面上看不到任何提示，属于典型静默失效。
+    _metal_binarized = None
     if "metalness" in out:
         try:
-            out["metalness"] = 1.0 if float(out["metalness"]) >= 0.5 else 0.0
+            _mv = float(out["metalness"])
         except (TypeError, ValueError):
+            _mv = None
             out.pop("metalness", None)
+        if _mv is not None:
+            out["metalness"] = 1.0 if _mv >= 0.5 else 0.0
+            # 只有「用户真给了中间值、且没开金属度贴图」才算损失；贴图在场时分布由贴图表达
+            if 0.02 < _mv < 0.98 and "texmap_metalness" not in sem:
+                _metal_binarized = (_mv, out["metalness"])
 
     # ---- 5. 贴图占位符与控制键原样继承（exporter 按 Corona 槽位重新落位）----
     for k, v in sem.items():
@@ -1526,6 +1571,13 @@ def resolve_corona(values: dict) -> dict:
         if k == "fog_multiplier" and not v:
             continue
         dropped.append(_CORONA_DROP_LABELS.get(k, k))
+
+    # ---- 6b. 金属度二值化点名（0.12.0）----
+    if _metal_binarized is not None:
+        _mv0, _mv1 = _metal_binarized
+        dropped.append(
+            "金属度：Corona 物理材质没有标量金属度，%.2f 已二值化为 %.0f"
+            "（要中间值请勾选「金属度贴图」）" % (_mv0, _mv1))
 
     # ---- 7. 语义损失点名：_CORONA_SILENT 为了不刷屏压掉的项里，有实际视觉后果的
     # 单独补一条人话说明。只对「用户真用了这个能力」的场景触发，详见 corona_loss_notes。
@@ -1609,16 +1661,29 @@ def corona_loss_notes(values: dict, sem: dict | None = None) -> list:
                 "折射率：Corona 只有一个 IOR，已按反射 IOR %.2f 写入，"
                 "你设的折射 IOR %.2f 不会单独生效" % (brdf_ior, refr_ior))
 
-        # ---- 4. 共用粗糙度：Corona 的 roughness 同时管反射与折射 ----
-        gl = sem.get("reflection_glossiness")
-        try:
-            gl_v = float(gl) if gl is not None else 1.0
-        except (TypeError, ValueError):
-            gl_v = 1.0
-        if gl_v < 0.85:
-            notes.append(
-                "磨砂：Corona 反射与折射共用一套粗糙度，折射也会一起变哑；"
-                "V-Ray 侧折射始终是清透的，两端观感会不同")
+    # ---- 4. 共用粗糙度：Corona 的 roughness 同时管反射与折射 ----
+    gl = sem.get("reflection_glossiness")
+    try:
+        gl_v = float(gl) if gl is not None else 1.0
+    except (TypeError, ValueError):
+        gl_v = 1.0
+    if gl_v < 0.85:
+        notes.append(
+            "磨砂：Corona 反射与折射共用一套粗糙度，折射也会一起变哑；"
+            "V-Ray 侧折射始终是清透的，两端观感会不同")
+
+    # ---- 5. 反射强度：物理材质没有「反射强度倍率」这一档（0.12.0 补）----
+    # 为什么单列：V-Ray 用 reflectionColor 灰阶承载 reflect_strength，Corona 侧
+    # reflectionColor 属于丢弃项，于是用户把滑块从 1.0 拖到 0.1，预览变哑了、
+    # 导出到 Corona 却毫无变化——典型的「点了没反应」，必须点名，不能算语义等价。
+    try:
+        _rs = float(values.get("reflect_strength", 1.0))
+    except (TypeError, ValueError):
+        _rs = 1.0
+    if _rs < 0.99:
+        notes.append("反射强度：Corona 物理材质没有反射强度倍率，%.2f 这一档在 Corona 侧"
+                     "不生效（V-Ray 侧正常生效）；想在 Corona 里压反光，请调低"
+                     "「反射光泽度」或换更粗糙的预设" % _rs)
 
     return notes
 

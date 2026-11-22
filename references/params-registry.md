@@ -10,9 +10,9 @@
 |------|--------|--------|
 | 基础 | 9 | 新手（base_color / metal_mode / rough_level / normal_strength / uv_tiling）+ 进阶 |
 | UV | 2 | 新手（平铺）/ 进阶（旋转、偏移） |
-| 细节 | 9 | 进阶 |
+| 细节 | 10 | 进阶 |
 | 质感 | 9 | 进阶（程序化麻面与区域遮罩） |
-| 表面 | 27 | 进阶 |
+| 表面 | 29 | 进阶 |
 | 进阶 | 6 | 进阶 |
 
 合计 62 项。v0.8.0 新增 9 项（v0.9.2 起表面组再拆出 `dispersion_on`，见下）：
@@ -214,6 +214,7 @@ Param(
 | 细节 | `normal_strength` | range | 1 | 新手 |
 | 细节 | `bump_on` | bool | false | 中级 |
 | 细节 | `bump_strength` | range | 0.6 | 中级 |
+| 细节 | `metalness_tex_on` | bool | false | 中级 |
 | 细节 | `nb_overlay` | bool | true | 中级 |
 | 细节 | `displacement_on` | bool | false | 进阶 |
 | 细节 | `disp_amount` | range | 0.1 | 进阶 |
@@ -230,6 +231,7 @@ Param(
 | 质感 | `proc_seed` | int | 7 | 进阶 |
 | 表面 | `coat_on` | bool | false | 中级 |
 | 表面 | `emis_on` | bool | false | 进阶 |
+| 表面 | `emissive_tex_on` | bool | false | 进阶 |
 | 表面 | `refraction_on` | bool | false | 中级 |
 | 表面 | `anisotropy_on` | bool | false | 中级 |
 | 表面 | `anisotropy_amount` | range | 0.7 | 中级 |
@@ -248,6 +250,7 @@ Param(
 | 表面 | `opacity_cutoff` | range | 0.5 | 进阶 |
 | 表面 | `thin_wall_on` | bool | false | 进阶 |
 | 表面 | `sheen_layer_on` | bool | false | 进阶 |
+| 表面 | `sheen_tex_on` | bool | false | 进阶 |
 | 表面 | `thin_film_on` | bool | false | 进阶 |
 | 表面 | `thin_film_nm` | range | 350 | 进阶 |
 | 表面 | `dispersion_on` | bool | false | 进阶 |

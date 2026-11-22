@@ -11,9 +11,9 @@
 
 | 项 | 数值 |
 | --- | --- |
-| 参数总数 | 62 |
+| 参数总数 | 65 |
 | 分组数 | 6 |
-| [OK] | 47 |
+| [OK] | 50 |
 | [WARN] | 9 |
 | [LOSS] | 5 |
 | [NONE] | 1 |
@@ -39,7 +39,7 @@
 | `uv_tiling` UV 平铺 | range | __uv_tiling__ | — | [OK] | 写贴图 UV 控制键 __uv_tiling__，由 exporter 落到每个贴图 |
 | `uv_rotation` UV 旋转 | range | __uv_rotation__ | — | [OK] | 写贴图 UV 控制键 __uv_rotation__ |
 
-## 细节（9 项）
+## 细节（10 项）
 
 | 参数 | 控件 | V-Ray 落点 | Corona 落点 | 状态 | 说明 |
 | --- | --- | --- | --- | --- | --- |
@@ -47,16 +47,19 @@
 | `normal_strength` 法线强度 | range | bump_multiplier | bump_multiplier | [OK] | 叠加时=V-Ray 材质 bump_multiplier（整体凹凸量）/ Corona法线.multiplier；单独法线时同为材质级 bump_multiplier |
 | `bump_on` 凹凸贴图 | bool | bump_multiplier, texmap_bump | texmap_bump | [OK] | 走凹凸槽；与 normal_on 同时开启时作为内层附加凹凸叠加，不抢占法线槽 |
 | `bump_strength` 凹凸强度 | range | bump_multiplier | texmap_bump | [OK] | 叠加时=V-Ray VRayNormalMap.bump_multiplier / Corona 法线.additionalBumpStrength（并强制 additionalBumpOn=true）；单独凹凸时=材质级 bump_multiplier |
+| `metalness_tex_on` 金属度贴图 | bool | texmap_metalness | texmap_metalness | [OK] | — |
 | `nb_overlay` 法线+凹凸叠加 | bool | — | bump_multiplier, texmap_bump | [OK] | 开启后法线与凹凸各占一层：外层材质 bump_multiplier 管整体，内层节点管凹凸倍率，互不覆盖 |
 | `displacement_on` 置换 | bool | displacement_amount, texmap_displacement | texmap_displacement | [OK] | — |
 | `disp_amount` 置换强度 | range | displacement_amount | texmap_displacement | [OK] | — |
 | `disp_subdiv` 置换细分 | range | __disp_subdiv | texmap_displacement | [OK] | — |
 | `ao_on` AO 环境遮蔽 | bool | __activate_ao | — | [NONE] | 不改动标量属性（仅贴图槽 / 前端预览） |
 
-## 表面（27 项）
+## 表面（29 项）
 
 | 参数 | 控件 | V-Ray 落点 | Corona 落点 | 状态 | 说明 |
 | --- | --- | --- | --- | --- | --- |
+| `emissive_tex_on` 自发光贴图 | bool | — | selfIllumination, selfIllumination_multiplier, texmap_self_illumination | [OK] | — |
+| `sheen_tex_on` 绒面贴图 | bool | texmap_sheen | texmap_sheen | [OK] | — |
 | `coat_on` 清漆层 | bool | coat_amount, coat_glossiness, coat_ior | coat_amount, coat_ior, coat_roughness | [OK] | — |
 | `emis_on` 自发光 | bool | selfIllumination | selfIllumination, selfIllumination_multiplier | [OK] | — |
 | `refraction_on` 折射/透明 | bool | refractionColor, refraction_ior, refraction_maxDepth | refraction_amount | [OK] | — |

@@ -15,7 +15,9 @@ const S = {
   // 烘焙后的 albedo（颜色已烘进贴图）；为空表示预览仍靠 material.color 相乘
   bakedAlbedo: null,
   // 贴图集勾选状态：只有勾选的通道才会应用到材质球（并同步到导出）
-  texOn: { albedo: true, normal: true, roughness: true, height: true, ao: true, opacity: true },
+  // 三通道（metalness/emissive/sheen）默认关闭：主流材质用不到，与后端 Param 默认一致
+  texOn: { albedo: true, normal: true, roughness: true, height: true, ao: true, opacity: true,
+           metalness: false, emissive: false, sheen: false },
   shape: "sphere",
   lightMode: "studio",
   spin: true,
@@ -39,6 +41,89 @@ function toast(msg, isErr = false) {
   toastEl.className = "toast show" + (isErr ? " err" : "");
   clearTimeout(toast._t);
   toast._t = setTimeout(() => (toastEl.className = "toast"), 2600);
+}
+
+/* ==================================================================
+ * 会话状态持久化（0.12.0）
+ *
+ * 为什么必须做：调了 30 多项参数、按了导出，浏览器一刷新全部回默认值，
+ * 只能从头再调一遍——这是用户群里反馈最多的一条。存 localStorage 而不是
+ * sessionStorage：关掉标签页明天打开也该还在。
+ *
+ * 存什么、不存什么：
+ *   存 参数值 / 通道勾选 / 预览形状 / 灯光档 / 目标渲染器 / 是否纯色模式；
+ *   不存 上传的原图（几 MB 二进制塞 localStorage 会直接超 5MB 配额，
+ *   而且配额塞满会让整个写入失败）。所以刷新后：纯色模式自动重建，
+ *   图片模式只恢复参数并明确提示需要重新上传。
+ * ================================================================== */
+const STORE_KEY = "mf_state_v1";
+let _saveTimer = 0;
+
+function persistState() {
+  try {
+    const ids = new Set((S.schema?.params || []).map((p) => p.id));
+    const values = {};
+    for (const k of Object.keys(S.values || {})) {
+      if (ids.size === 0 || ids.has(k)) values[k] = S.values[k];
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      schemaVersion: S.schema?.version || "",
+      values,
+      texOn: S.texOn,
+      shape: S.shape,
+      lightMode: S.lightMode,
+      renderer: S.renderer,
+      solidMode: !!S.solidMode,
+      savedAt: Date.now(),
+    }));
+  } catch (e) {
+    // 隐私模式 / 配额满：持久化失败绝不能影响正常使用，静默跳过
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(persistState, 400);
+}
+
+function readSavedState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;   // 旧版本写坏的数据（或非 JSON）直接忽略，不让它卡住启动
+  }
+}
+
+/** 把形状 / 灯光按钮的 active 状态对齐到 S（按钮点击才改 class，恢复时要手动补） */
+function syncShapeLightUI() {
+  const seg = (id, key, attr) => {
+    const box = $(id);
+    if (!box) return;
+    box.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("active", b.dataset[attr] === key);
+    });
+  };
+  seg("shapeSeg", S.shape, "shape");
+  seg("lightSeg", S.lightMode, "light");
+}
+
+function restoreSavedState(saved) {
+  if (!saved || typeof saved !== "object") return null;
+  const ids = new Set((S.schema?.params || []).map((p) => p.id));
+  for (const [k, val] of Object.entries(saved.values || {})) {
+    if (ids.has(k)) S.values[k] = val;      // 只认当前版本存在的参数，旧键丢弃
+  }
+  if (saved.texOn && typeof saved.texOn === "object") {
+    for (const [k, on] of Object.entries(saved.texOn)) {
+      if (k in S.texOn) S.texOn[k] = on === true;
+    }
+  }
+  if (typeof saved.shape === "string") S.shape = saved.shape;
+  if (typeof saved.lightMode === "string") S.lightMode = saved.lightMode;
+  if (saved.renderer === "vray" || saved.renderer === "corona") S.renderer = saved.renderer;
+  S.values.base_color = normalizeHex(S.values.base_color || "#ffffff");
+  return saved;
 }
 
 /* ==================================================================
@@ -264,7 +349,14 @@ function updateMaterial() {
 
   // 金属 / 粗糙：独立反射光泽度开启时用 1-gloss 反算，对应 V-Ray reflectionGlossiness
   m.metalness = v.metal_mode ? 1.0 : 0.0;
-  m.metalnessMap = v.metal_mode && on.albedo ? T.albedo || null : null;
+  // 0.12.0：有专用金属度贴图就用它（能表达 0~1 中间值与分布）；
+  // 没有才退回旧行为——metal_mode 打开时拿 albedo 当金属遮罩。
+  if (v.metalness_tex_on && on.metalness && T.metalness) {
+    m.metalnessMap = T.metalness;
+    m.metalness = 1.0;              // 模式给满，具体金属度由贴图值决定
+  } else {
+    m.metalnessMap = v.metal_mode && on.albedo ? T.albedo || null : null;
+  }
   const baseRough = ROUGH_MAP[v.rough_level] ?? 0.55;
   const gloss = Math.max(0, Math.min(1, Number(v.reflection_glossiness ?? 0.72)));
   m.roughness = v.gloss_mode ? 1 - gloss : baseRough;
@@ -280,6 +372,10 @@ function updateMaterial() {
     m.sheen = v.sheen_layer_on ? 0.8 : 0.0;
     if ("sheenColor" in m) m.sheenColor = new THREE.Color(normalizeHex(v.sheen_color || "#ffffff"));
     if ("sheenRoughness" in m) m.sheenRoughness = 1 - Math.max(0, Math.min(1, Number(v.sheen_gloss ?? 0.45)));
+    // 0.12.0 绒面分布图：褶皱处更绒、压平处更亮
+    if ("sheenColorMap" in m) {
+      m.sheenColorMap = v.sheen_tex_on && on.sheen ? T.sheen || null : null;
+    }
   } catch (e) { /* 老版本 three 无 sheen */ }
 
   // 反射强度：直接削弱环境反射能量
@@ -348,15 +444,20 @@ function updateMaterial() {
     || (!!v.sss_on && m.transmission > 0);
 
   // 自发光
-  m.emissiveMap = v.emis_on && on.albedo ? T.albedo || null : null;
+  // 0.12.0：有专用自发光贴图就用它（局部发光）；没有才退回拿 albedo 当发光遮罩
+  m.emissiveMap = v.emis_on && v.emissive_tex_on && on.emissive && T.emissive
+    ? T.emissive
+    : (v.emis_on && on.albedo ? T.albedo || null : null);
   m.emissive = new THREE.Color(v.emis_on ? normalizeHex(v.emis_color || "#ffffff") : 0x000000);
   m.emissiveIntensity = v.emis_on ? Math.max(0, Number(v.emis_strength ?? 1)) * 0.35 : 0;
 
   m.needsUpdate = true;
+  scheduleSave();          // 所有参数变更最终都会走到这里，一处挂载即可全覆盖
 
   const texCount = Object.values(on).filter(Boolean).length;
+  const texTotal = Object.keys(on).length;   // 0.12.0：通道数已随三通道扩到 9，别再写死
   $("statLine").textContent =
-    `贴图 ${texCount}/6 · UV ${tiling.toFixed(1)}×${tiling.toFixed(1)} / ${Math.round(rotDeg)}° · ` +
+    `贴图 ${texCount}/${texTotal} · UV ${tiling.toFixed(1)}×${tiling.toFixed(1)} / ${Math.round(rotDeg)}° · ` +
     `颜色 ${baseHex.toUpperCase()} · 粗糙 ${m.roughness.toFixed(2)} · ` +
     `光泽 ${v.gloss_mode ? gloss.toFixed(2) : "—"} · 凹凸 ${m.bumpMap || m.normalMap ? bs.toFixed(2) : "关"} · ` +
     `雾 ${fogOn ? `${fogAmt.toFixed(2)} ${String(v.fog_color || "#ffffff").toUpperCase()}` : "关"} · ` +
@@ -949,17 +1050,23 @@ function renderPresets() {
     });
     box.appendChild(b);
   }
-}
+}
+
 
 /* ==================================================================
  * 贴图集缩略
  * ================================================================== */
-const TEX_LABEL = { albedo: "漫反射", normal: "法线", roughness: "粗糙度", height: "高度", ao: "AO", opacity: "透明度" };
+const TEX_LABEL = {
+  albedo: "漫反射", normal: "法线", roughness: "粗糙度", height: "高度", ao: "AO", opacity: "透明度",
+  metalness: "金属度", emissive: "自发光", sheen: "绒面",
+};
 
 function renderTexGrid(urls) {
   const grid = $("texgrid");
   grid.innerHTML = "";
-  for (const key of ["albedo", "normal", "roughness", "height", "ao", "opacity"]) {
+  // 顺序固定：基础通道在前，三通道在后；没出图的通道自然跳过（url 为空）
+  for (const key of ["albedo", "normal", "roughness", "height", "ao", "opacity",
+                     "metalness", "emissive", "sheen"]) {
     const url = urls[key];
     if (!url) continue;
 
@@ -1455,12 +1562,27 @@ window.openDir = async (p) => {
     for (const p of S.schema.params) S.values[p.id] = p.default;
     S.values.base_color = normalizeHex(S.values.base_color || "#ffffff");
     S.defaults = { ...S.values };
+
+    // 恢复上次会话（参数 / 通道勾选 / 形状 / 灯光 / 渲染器）
+    const saved = restoreSavedState(readSavedState());
     renderQuickColors();
     renderPresets();
     setMode(S.mode);
     ensureMaterial();
+    // 恢复顺序：先灯光（重建环境贴图），再形状（applyShape 依赖 material 已存在）
+    applyLightMode(S.lightMode);
+    applyShape(S.shape);
+    syncShapeLightUI();
     updateMaterial();
     $("engineHint").textContent = `渲染引擎：three.js ${THREE.REVISION} · 输出：V-Ray 6 VRayMtl`;
+
+    // 纯色模式可以完整重建（源图本来就是程序化生成的）；图片模式只能恢复参数
+    if (saved && saved.solidMode) {
+      $("btnSolid").click();
+      toast("已恢复上次的参数与纯色材质");
+    } else if (saved) {
+      toast("已恢复上次的参数，图片需重新上传", true);
+    }
   } catch (e) {
     $("engineHint").textContent = "初始化失败：" + e.message;
   }

@@ -728,3 +728,194 @@ TAIL = r"""    -- ---------------- 4. 创建材质球对象 ----------------
     format "完成。\n"
 )"""
 
+
+# ----------------------------------------------------------------------
+# 降级近似映射段（0.12.0 / D4）
+# ----------------------------------------------------------------------
+# 触发条件：本机没有 VRayMtl / Corona 物理材质，CREATE 段只能退到 PhysicalMaterial
+# 或 StandardMaterial。0.11.5 之前这条路径下一个参数都不写：用户拿到同名空材质球，
+# 日志只有一串 [SKIP]，既看不出丢了什么，也不知道还能救回多少。
+#
+# 口径（写代码前先定死，避免又一次"假通过"）：
+#   1) 只用 mfSetOn（布尔返回、不累加 mf_FAIL）——降级本身不是实现缺陷，
+#      但每项成败必须单独打 [FALLBACK]，不允许静默；
+#   2) 属性名全部走候选链：# 里第一个命中即用，全不命中记「跳过」；
+#   3) 值由 Python 侧算好填入（@@FB_*@@），脚本里不做语义换算，
+#      保证降级材质与预览用的同一套数；
+#   4) 结尾必须打汇总行，明说「与 VRayMtl 不等价」，不给用户留"以为等价"的空间。
+FALLBACK = r"""    -- ---------------- 3.5 降级近似映射（通用 PBR 重写）----------------
+    local mfFbCls = toLower ((classof mtl) as string)
+    local mfFbIsTarget = (((findString mfFbCls "vray") != undefined) or ((findString mfFbCls "corona") != undefined))
+    if (not mfFbIsTarget) do (
+        mfLog "--- 降级近似映射（目标材质没有 V-Ray/Corona 属性，按通用 PBR 重写）---"
+        local fbOK = 0
+        local fbSkip = 0
+
+        -- 基色：PhysicalMaterial 是 base_color，StandardMaterial 是 diffuse
+        if (mfSetOn mtl #("base_color", "basecolor", "diffuse") (color @@FB_R@@ @@FB_G@@ @@FB_B@@)) then (
+            fbOK += 1
+            mfLog "  [FALLBACK] 基色已写入"
+        ) else (
+            fbSkip += 1
+            mfLog "  [FALLBACK] 基色属性不存在，跳过"
+        )
+
+        -- 粗糙度：PhysicalMaterial 的 roughness 与语义同向，不需要 1-x
+        if (mfSetOn mtl #("roughness", "base_roughness") @@FB_ROUGH@@) then (
+            fbOK += 1
+            mfLog ("  [FALLBACK] 粗糙度已写入 " + (@@FB_ROUGH@@ as string))
+        ) else (
+            fbSkip += 1
+            mfLog "  [FALLBACK] 粗糙度属性不存在，跳过"
+        )
+
+        -- 金属度：负值代表「用户没开金属」，不下发，避免把默认 0 改成显式 0
+        if (@@FB_METAL@@ >= 0.0) do (
+            if (mfSetOn mtl #("metalness", "base_metalness") @@FB_METAL@@) then (
+                fbOK += 1
+                mfLog ("  [FALLBACK] 金属度已写入 " + (@@FB_METAL@@ as string))
+            ) else (
+                fbSkip += 1
+                mfLog "  [FALLBACK] 金属度属性不存在，跳过"
+            )
+        )
+
+        -- 折射率
+        if (@@FB_IOR@@ > 0.0) do (
+            if (mfSetOn mtl #("ior", "base_ior") @@FB_IOR@@) then (
+                fbOK += 1
+                mfLog ("  [FALLBACK] 折射率已写入 " + (@@FB_IOR@@ as string))
+            ) else (
+                fbSkip += 1
+                mfLog "  [FALLBACK] 折射率属性不存在，跳过"
+            )
+        )
+
+        -- 自发光：颜色 + 强度分开写，物理材质的发光强度叫 emission_strength / selfIllumLevel
+        if (@@FB_EMIS_ON@@) do (
+            local emOK = mfSetOn mtl #("emission_color", "emissive_color", "selfIllumColor", "emission") (color @@FB_ER@@ @@FB_EG@@ @@FB_EB@@)
+            if emOK then (
+                fbOK += 1
+                mfLog "  [FALLBACK] 自发光颜色已写入"
+            ) else (
+                fbSkip += 1
+                mfLog "  [FALLBACK] 自发光颜色属性不存在，跳过"
+            )
+            if (mfSetOn mtl #("emission_strength", "selfIllumLevel", "emissive_strength") @@FB_EMIS_STR@@) then (
+                fbOK += 1
+                mfLog ("  [FALLBACK] 自发光强度已写入 " + (@@FB_EMIS_STR@@ as string))
+            ) else (
+                fbSkip += 1
+                mfLog "  [FALLBACK] 自发光强度属性不存在，跳过"
+            )
+        )
+
+        -- 透明：PhysicalMaterial 走 transparency（0=不透），与 VRayMtl 的折射率语义不同向，
+        -- 这里只做「有透明量则给个近似值」，并在日志里点名不是等价换算
+        if (@@FB_TRANS@@ > 0.0) do (
+            if (mfSetOn mtl #("transparency", "opacity", "transparency_amount") @@FB_TRANS@@) then (
+                fbOK += 1
+                mfLog ("  [FALLBACK] 透明近似已写入 " + (@@FB_TRANS@@ as string) + "（与 V-Ray 折射不等价）")
+            ) else (
+                fbSkip += 1
+                mfLog "  [FALLBACK] 透明属性不存在，跳过"
+            )
+        )
+
+        -- 贴图：位图对象统一由 mfBitmap 建（自带 UV 平铺/旋转），落槽失败只记账不判错
+        if (@@FB_ALBEDO@@ != "") do (
+            local bm1 = undefined
+            try ( bm1 = mfBitmap @@FB_ALBEDO@@ ) catch ( bm1 = undefined )
+            if bm1 != undefined then (
+                if (mfSetOn mtl #("base_color_map", "diffuseMap", "diffuse_map") bm1) then (
+                    mfSetOn mtl #("base_color_map_on", "diffuseMap_on", "diffuse_map_on") true
+                    fbOK += 1
+                    mfLog "  [FALLBACK] 漫反射贴图已挂接"
+                ) else (
+                    fbSkip += 1
+                    mfLog "  [FALLBACK] 无漫反射贴图槽，跳过"
+                )
+            )
+        )
+        if (@@FB_ROUGH_TEX@@ != "") do (
+            local bm2 = undefined
+            try ( bm2 = mfBitmap @@FB_ROUGH_TEX@@ ) catch ( bm2 = undefined )
+            if bm2 != undefined then (
+                if (mfSetOn mtl #("roughness_map", "roughnessMap") bm2) then (
+                    mfSetOn mtl #("roughness_map_on", "roughnessMap_on") true
+                    fbOK += 1
+                    mfLog "  [FALLBACK] 粗糙度贴图已挂接"
+                ) else (
+                    fbSkip += 1
+                    mfLog "  [FALLBACK] 无粗糙度贴图槽，跳过"
+                )
+            )
+        )
+        if (@@FB_METAL_TEX@@ != "") do (
+            local bm3 = undefined
+            try ( bm3 = mfBitmap @@FB_METAL_TEX@@ ) catch ( bm3 = undefined )
+            if bm3 != undefined then (
+                if (mfSetOn mtl #("metalness_map", "metalnessMap") bm3) then (
+                    mfSetOn mtl #("metalness_map_on", "metalnessMap_on") true
+                    fbOK += 1
+                    mfLog "  [FALLBACK] 金属度贴图已挂接"
+                ) else (
+                    fbSkip += 1
+                    mfLog "  [FALLBACK] 无金属度贴图槽，跳过"
+                )
+            )
+        )
+        if (@@FB_NORMAL_TEX@@ != "") do (
+            local bm4 = undefined
+            try ( bm4 = mfBitmap @@FB_NORMAL_TEX@@ ) catch ( bm4 = undefined )
+            if bm4 != undefined then (
+                -- 优先用 Normal_Bump 包一层（标准法线图不会被当灰度凹凸）；
+                -- 该包装类的属性写入全部走 mfSetOn，避免某个版本改过属性名时抛错中断整脚本
+                local nm = undefined
+                local wrapped = false
+                try ( nm = Normal_Bump() ) catch ( nm = undefined )
+                if nm != undefined do (
+                    wrapped = mfSetOn nm #("normal_map") bm4
+                )
+                local slotObj = if wrapped then nm else bm4
+                if (mfSetOn mtl #("bump_map", "bumpMap") slotObj) then (
+                    mfSetOn mtl #("bump_map_on", "bumpMap_on") true
+                    fbOK += 1
+                    if wrapped then (
+                        mfLog "  [FALLBACK] 法线贴图已挂接（经 Normal_Bump 包装）"
+                    ) else (
+                        mfLog "  [FALLBACK] 法线贴图已直挂凹凸槽（Normal_Bump 不可用，方向可能反转，需目视确认）"
+                    )
+                ) else (
+                    fbSkip += 1
+                    mfLog "  [FALLBACK] 无凹凸槽，法线跳过"
+                )
+            )
+        )
+        if (@@FB_HEIGHT_TEX@@ != "") do (
+            local bm5 = undefined
+            try ( bm5 = mfBitmap @@FB_HEIGHT_TEX@@ ) catch ( bm5 = undefined )
+            if bm5 != undefined then (
+                local nm2 = undefined
+                local wrapped2 = false
+                try ( nm2 = Normal_Bump() ) catch ( nm2 = undefined )
+                if nm2 != undefined do (
+                    wrapped2 = mfSetOn nm2 #("bump_map") bm5
+                    if wrapped2 do mfSetOn nm2 #("bump_map_amount") @@FB_BUMP_AMT@@
+                )
+                local slotObj2 = if wrapped2 then nm2 else bm5
+                if (mfSetOn mtl #("bump_map", "bumpMap") slotObj2) then (
+                    mfSetOn mtl #("bump_map_on", "bumpMap_on") true
+                    fbOK += 1
+                    mfLog "  [FALLBACK] 高度贴图已挂到凹凸"
+                ) else (
+                    fbSkip += 1
+                    mfLog "  [FALLBACK] 无凹凸槽，跳过"
+                )
+            )
+        )
+
+        mfLog ("  [FALLBACK] 汇总：写入 " + (fbOK as string) + " 项，跳过 " + (fbSkip as string) + " 项")
+        mfLog "  [FALLBACK] 该材质与 VRayMtl 不等价，仅作近似；要精确复现请装对应渲染器后重跑"
+    )
+"""

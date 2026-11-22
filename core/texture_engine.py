@@ -164,6 +164,83 @@ def derive_opacity(arr: np.ndarray, cutoff: float = 0.5, invert: bool = False) -
     return np.clip(a, 0.0, 1.0)
 
 
+def derive_metalness(height: np.ndarray, mask: np.ndarray | None = None,
+                     base: float = 1.0, amount: float = 0.35) -> np.ndarray:
+    """金属度贴图（0=非金属，1=纯金属），单通道灰度。
+
+    为什么必须做成贴图（0.12.0 的核心理由）：
+        Corona 物理材质**没有标量金属度**，只有 metalnessMode(0/1 模式开关) + metalnessTexmap。
+        0.3 / 0.7 这类中间值在 Corona 上只能二值化，用户调了看不出提示——
+        想让「磨损处露底材金属、漆面处不金属」这种分布出现，唯一通道就是一张 0~1 的贴图。
+
+    推导口径（刻意不从漫反射颜色反解）：
+        从 albedo 反解会把颜色当金属度，金属漆、黄铜、红铜会整片误判成金属，
+        连乳胶漆的暖色也会被拉高。这里只用几何/脏污信息：
+            height 的高频起伏做 ±amount 调制（凸起处先磨、先露底材）；
+            mask 低频脏污再压一层（积灰、氧化区域金属感下降）。
+        base 由「金属度」参数给出，是整张图的中位水平。
+    """
+    h = _luma(np.dstack([height] * 3)) if height.ndim == 2 else _luma(height)
+    detail = h - _gauss(h, max(1.0, min(h.shape) * 0.01))
+    a = np.clip(float(amount), 0.0, 1.0)
+    m = float(np.clip(base, 0.0, 1.0)) + detail * 2.0 * a
+    if mask is not None:
+        mk = mask if mask.ndim == 2 else _luma(mask)
+        m = m - (mk - 0.5) * 0.6 * a
+    return np.clip(m, 0.0, 1.0)
+
+
+def derive_emissive(mask: np.ndarray | None = None, albedo: np.ndarray | None = None,
+                    base: float = 1.0, amount: float = 0.6) -> np.ndarray:
+    """自发光分布贴图，单通道灰度（0=不发光）。
+
+    用途：灯箱、灯带、发光字这类**局部**发光。只靠 selfIllumination 颜色 + 强度
+    是整块均匀发光，做不出「只有字/只有灯带亮」的效果。
+
+    推导口径：
+        有低频遮罩时以遮罩为发光分布（遮罩本来就是"哪块是主体结构"的低频判断，
+        与灯箱面板的位置天然重合）；没有遮罩时退化为以漫反射亮度为分布
+        （亮的区域先发光，暗缝不发光），并保持 base 中位水平。
+    """
+    a = np.clip(float(amount), 0.0, 1.0)
+    if mask is not None:
+        mk = mask if mask.ndim == 2 else _luma(mask)
+        e = float(np.clip(base, 0.0, 1.0)) * (0.35 + 1.3 * mk)
+    elif albedo is not None:
+        al = _luma(albedo) if albedo.ndim == 3 else albedo
+        lo, hi = float(np.min(al)), float(np.max(al))
+        norm = (al - lo) / max(1e-6, hi - lo)
+        e = float(np.clip(base, 0.0, 1.0)) * (norm ** 1.5)
+    else:
+        e = np.full((8, 8), float(np.clip(base, 0.0, 1.0)))
+    # amount 越小越"平"（贴近整块均匀发光），越大越贴合遮罩分布
+    flat = float(np.clip(base, 0.0, 1.0))
+    e = flat * (1.0 - a) + e * a
+    return np.clip(e, 0.0, 1.0)
+
+
+def derive_sheen(rough: np.ndarray, mask: np.ndarray | None = None,
+                 base: float = 1.0, amount: float = 0.5) -> np.ndarray:
+    """绒面（sheen）强度分布贴图，单通道灰度。
+
+    用途：绒布、天鹅绒、地毯的边缘绒光分布。Corona 的 sheenAmount 是标量，
+    只能整块均匀起绒；要做出「褶皱处绒毛更密、压平处更亮」需要贴图。
+
+    推导口径：
+        粗糙度越高的地方绒面越明显（绒面本质上就是高粗糙度的边缘散射），
+        因此以 rough 为分布基底；mask 低频再叠加一层（褶皱/堆积区域更绒）。
+        与基色无关，不参与染色（染色仍由 sheenColor 决定）。
+    """
+    r = rough if rough.ndim == 2 else _luma(rough)
+    a = np.clip(float(amount), 0.0, 1.0)
+    sh = 0.35 + 0.65 * np.clip(r, 0.0, 1.0)
+    if mask is not None:
+        mk = mask if mask.ndim == 2 else _luma(mask)
+        sh = sh + (mk - 0.5) * 0.4 * a
+    sh = 1.0 - (1.0 - np.clip(sh, 0.0, 1.0)) * (1.0 - a)
+    return np.clip(sh * float(np.clip(base, 0.0, 1.0)), 0.0, 1.0)
+
+
 def derive_opacity_file(src_path: str, dst_path: str, cutoff: float = 0.5) -> str:
     """按指定阈值单独重算透明度贴图（导出时按 opacity_cutoff 烘焙）"""
     im = _load_rgb(src_path)
@@ -504,6 +581,31 @@ def build_texture_set(src_path: Optional[str], out_dir: str,
         "ao": _to_img(np.stack([ao] * 3, axis=-1)),
         "opacity": _to_img(np.stack([opacity] * 3, axis=-1)),
     }
+
+    # ---- 0.12.0：金属度 / 自发光 / 绒面 三通道（显式勾选才生成）----
+    # 为什么不默认生成：这三张图只有约三成场景用得上，默认出图会多占写盘与内存；
+    # 更关键的是 export_guard / evals 按开关判断「该不该有这张图」，
+    # 默认生成会让门禁口径与实际需求漂移，变成"图在但没人看"的假通过。
+    tick("生成扩展通道", 0.97)
+    mv = mask_field["mask"] if mask_info is not None else None
+    if bool(options.get("metalness_tex_on", False)):
+        mmet = derive_metalness(
+            height, mv,
+            base=float(options.get("metal_base", 1.0) or 1.0),
+            amount=float(options.get("metal_tex_amount", 0.35) or 0.0))
+        outputs["metalness"] = _to_img(np.stack([mmet] * 3, axis=-1))
+    if bool(options.get("emissive_tex_on", False)):
+        mem = derive_emissive(
+            mv, albedo,
+            base=float(options.get("emis_tex_base", 1.0) or 1.0),
+            amount=float(options.get("emis_tex_amount", 0.6) or 0.0))
+        outputs["emissive"] = _to_img(np.stack([mem] * 3, axis=-1))
+    if bool(options.get("sheen_tex_on", False)):
+        msh = derive_sheen(
+            rough, mv,
+            base=float(options.get("sheen_tex_base", 1.0) or 1.0),
+            amount=float(options.get("sheen_tex_amount", 0.5) or 0.0))
+        outputs["sheen"] = _to_img(np.stack([msh] * 3, axis=-1))
 
     paths = {}
     for name, img in outputs.items():

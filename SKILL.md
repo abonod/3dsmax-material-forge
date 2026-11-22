@@ -96,7 +96,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 ├── README.md                    面向人的项目说明
 ├── app.py                       FastAPI 服务（上传/推导/导出/预检，端口 8765）
 ├── core/
-│   ├── params.py                参数注册表 PARAMS —— 唯一事实来源（62 项 / 6 分组）+ resolve_vray / resolve_corona 两套翻译层
+│   ├── params.py                参数注册表 PARAMS —— 唯一事实来源（65 项 / 6 分组）+ resolve_vray / resolve_corona 两套翻译层
 │   ├── version.py               版本号 SSOT（当前 ）+ 各版本变更摘要
 │   ├── preflight.py             导出前自检：环境探测 + 模板结构/取值域校验 + 综合报告
 │   ├── export_guard.py          导出后自检：贴图存在性 + .ms 引用断链 + 通道完整性
@@ -113,7 +113,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │   ├── verify_ms.py             .ms 静态体检
 │   ├── regen_legacy.py          历史产物批量重导出 / 坏写法修复（默认 dry-run）
 │   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，20 项断言）
-│   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 62 项与档位一致性
+│   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 65 项与档位一致性
 │   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
 │   ├── run_all_checks.py        统一检查入口（15 项串跑，--fast 跳过 Edge 截图）
 │   ├── mf_max_listener.ms       Max 端监听器：轮询 inbox → 校验 token/哈希 → fileIn → 写回执与心跳
@@ -129,7 +129,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 └── output/<job_id>/             source.png + textures/（中间过程）+ export/<材质名>/（.ms + textures/，一材质一目录；Corona 目录名带 _corona 后缀隔离）
 ```
 
-## 参数体系：62 项怎么组织的
+## 参数体系：65 项怎么组织的
 
 `core/params.py` 是单一事实来源，一条 `Param` 同时驱动面板、WebGL 预览、MaxScript 映射三条链。
 
@@ -140,20 +140,20 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 |------|------|------------------|
 | 基础 | 9 | 基础颜色、金属模式、金属反射染色、粗糙度档位 等 |
 | UV | 2 | UV 平铺、UV 旋转 |
-| 细节 | 9 | 法线贴图、法线强度、凹凸贴图、凹凸强度 等 |
+| 细节 | 10 | 法线贴图、法线强度、凹凸贴图、凹凸强度 等 |
 | 质感 | 9 | 程序化微结构、纹理类型、纹理尺寸、起伏强度 等 |
-| 表面 | 27 | 清漆层、自发光、折射/透明、各向异性 等 |
+| 表面 | 29 | 自发光贴图、绒面贴图、清漆层、自发光 等 |
 | 进阶 | 6 | 雾化（体积感）、雾化颜色、雾化浓度、次表面散射 SSS 等 |
-| **合计** | **62** | 6 个分组 |
+| **合计** | **65** | 6 个分组 |
 <!-- AUTO:params end -->
 
-三档暴露（v0.8.2 起）：新手 5 项（`BEGINNER_IDS`）、中级 30 项（新手 + `INTERMEDIATE_IDS` 25 项）、进阶 62 项全平铺。新手可见的 5 项**不是**简单取「基础」组：`base_color / metal_mode / rough_level / normal_strength / uv_tiling`（把基础组里的反射开关、菲涅尔 IOR 换成了法线强度和 UV 平铺，因为这两项对新手观感影响最大）。三档划分由后端 `tiers` 下发、互斥且并集等于 61 项；预设不是"改几个默认值"，而是 `preset_snapshots()` 展开出的**61 项完整快照**，套用即整体替换——所以切预设不会残留上一个材质的开关。
+三档暴露（v0.8.2 起）：新手 5 项（`BEGINNER_IDS`）、中级 30 项（新手 + `INTERMEDIATE_IDS` 25 项）、进阶 65 项全平铺。新手可见的 5 项**不是**简单取「基础」组：`base_color / metal_mode / rough_level / normal_strength / uv_tiling`（把基础组里的反射开关、菲涅尔 IOR 换成了法线强度和 UV 平铺，因为这两项对新手观感影响最大）。三档划分由后端 `tiers` 下发、互斥且并集等于 61 项；预设不是"改几个默认值"，而是 `preset_snapshots()` 展开出的**61 项完整快照**，套用即整体替换——所以切预设不会残留上一个材质的开关。
 
 加参数只改 `params.py`，加完跑一遍 `python scripts/run_all_checks.py`（或 `--fast` 跳过两个 Edge 截图检查）即可，不要手改 `app.js`。
 
 ## 双渲染器目标：V-Ray / Corona（0.9.0 引入，0.9.1 / 0.10.0 真机核对）
 
-同一套 62 参数、同一份贴图，可以出两套脚本。差别只在最后一公里：语义键 → 真实属性名的翻译，以及节点包装。
+同一套 65 参数、同一份贴图，可以出两套脚本。差别只在最后一公里：语义键 → 真实属性名的翻译，以及节点包装。
 
 ### 参数怎么翻过去的
 
@@ -427,7 +427,7 @@ output/<job_id>/
 
 ## 版本与打包
 
-版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.5`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
+版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.12.0`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
 
 ```
 python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScript 静态体检）→ 打包 → 写清单

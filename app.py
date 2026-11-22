@@ -57,7 +57,8 @@ _last_purge = 0.0
 
 _JOB_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
-CHANNELS = ["albedo", "normal", "roughness", "height", "ao"]
+CHANNELS = ["albedo", "normal", "roughness", "height", "ao",
+            "metalness", "emissive", "sheen"]
 
 
 # ------------------------------------------------------------------
@@ -227,6 +228,12 @@ def _tex_options(values: dict, extra: dict | None = None) -> dict:
             opts[k] = values[k]
     if extra:
         opts.update(extra)
+    # 0.12.0 三通道：开关 + 基准值一起下发。
+    # metal_mode 打开时整张图就是金属，base 取 1.0；否则给 0.85，让高度/遮罩把它
+    # 调制出 0.5~1 的分布（磨损露底材的常见区间），比从 0 起调更贴近真实金属件。
+    for _k in ("metalness_tex_on", "emissive_tex_on", "sheen_tex_on"):
+        opts[_k] = bool(values.get(_k, False))
+    opts["metal_base"] = 1.0 if bool(values.get("metal_mode", False)) else 0.85
     return opts
 
 

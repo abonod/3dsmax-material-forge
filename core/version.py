@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.11.5"
+__version__ = "0.12.0"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
 # 别名：scripts/docs_sync.py 用 getattr(V, "VERSION", "") 取版本号回写文档。
 # 这里必须有同名常量，否则取到空串，文档里的版本号会被写成「当前 」（静默清空而非报错）。
@@ -22,6 +22,15 @@ VERSION = __version__
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.12.0": [
+        "【贴图通道补齐·金属度/自发光/绒面】此前贴图只派生 albedo/height/normal/roughness/ao/opacity 六路，金属度、自发光、绒面三个通道只能靠参数硬写常量——用户想要「同一张遮罩上有的地方磨砂有的地方镜面」是做不到的。新增 derive_metalness（高度+遮罩推金属磨损）、derive_emissive（遮罩或漫反射提亮）、derive_sheen（粗糙度+遮罩推绒感），按 metalness_tex_on / emissive_tex_on / sheen_tex_on 三个开关显式出图，默认关，不出图不占体积。",
+        "【Corona 静默失效·金属度二值化点名】CoronaPhysicalMtl 的金属度是 metalnessMode（0/1 整数开关）+ metalnessTexmap，没有标量金属度属性，0.3、0.7 这类中间值只能按 0.5 阈值二值化。旧实现静默改值：调 0.7 拿到的是 1.0（全金属），界面上没有任何提示。现在二值化本身无法避免，但会写进 __dropped__ 与 .ms 运行日志：「金属度：Corona 物理材质没有标量金属度，0.70 已二值化为 1（要中间值请勾选金属度贴图）」。",
+        "【Corona 静默失效·反射强度点名】V-Ray 用 reflectionColor 灰阶承载 reflect_strength，Corona 侧 reflectionColor 属丢弃项，于是滑块从 1.0 拖到 0.1，预览变哑了、导出到 Corona 却毫无变化。新增 corona_loss_notes 第 5 条，reflect_strength<0.99 时明确告知「Corona 物理材质没有反射强度倍率，该档在 Corona 侧不生效（V-Ray 侧正常生效）」，并给出替代路径：调低反射光泽度或换更粗糙的预设。",
+        "【前端会话持久化】调了三十多项参数、按了导出，浏览器一刷新全部回默认值——只有重调一遍。新增 localStorage 保存（key mf_state_v1）：参数值、九路通道勾选、预览形状、灯光档、目标渲染器、纯色模式；刷新后参数自动回填并提示「已恢复上次的参数」。不存上传的原图（几 MB 二进制会直接超 5MB 配额，配额满会让整个写入失败），所以图片模式只恢复参数、明确提示需重新上传；纯色模式可完整重建。旧 schema 里不存在的键在恢复时丢弃，写坏的数据解析失败直接忽略，持久化异常一律静默跳过，绝不影响正常使用。",
+        "【前端·通道计数不再写死】状态栏原写死「贴图 x/6」，通道扩到九路后会永远显示到手 6 就满，改为按实际通道数取 Object.keys(texOn).length。",
+        "【导出槽位与守护】ms_exporter 的 TEX_SLOTS_EXACT / TEX_SLOTS / CORONA_TEX_SLOTS_EXACT 与两套 slot_map 增补三通道，属性名靠 mfFindSlotEx 候选链兜底并在缺失时记 SKIP；export_guard._CHANNEL_SWITCHES 同步三行，贴图存在但开关未开、或开关开了却没图，都会被自检抓出来。V-Ray 自发光需 emis_on 门控，避免开了贴图却因 emis_on 关闭而白导一张图。",
+        "实测：33 预设 × V-Ray/Corona 导出仍 66/66 静态体检通过；九路贴图端到端落盘（metalness 0.56~1.0 / emissive 0.6~1.0 / sheen 0.75~0.96 分布正常）；两渲染器 .ms 均引用三张新图且 export_guard 自检 ok；run_all_checks 15 项全 PASS；registry_check 与 docs_sync 口径一致（62 项→65 项）。",
+    ],
     "0.11.5": [
         "【预设扩容·16 → 33】新增 17 个预设，分三批落地：P0 六个纯数据（丝绒/天鹅绒、地毯、磨砂玻璃、有色玻璃、黄铜/紫铜、灯箱/发光软膜）只复用既有 62 参数；P1 七个组合（镜面、拉丝不锈钢、水、亚克力透光板、麂皮、未上漆原木、微水泥）靠既有参数组合出观感；P2 四个（文化石/砌砖墙、镂空铁艺/纱帘、阳极氧化铝、玉石/灯罩布）启用此前 35 个从未被预设使用的 sss_on / anisotropy_on / fog_on 等通道。三表 PRESETS / PRESET_LABELS / PRESET_EXTRAS 同键同序，导出端属性候选链无需改动",
         "【UI·两轴族群 chip】33 个预设平铺会挤成三四行且找不到目标，改为两轴：第一轴 PRESET_FAMILIES 七族（金属 / 石材陶瓷 / 木作 / 织物皮革 / 玻璃亚克力 / 涂料墙面 / 特殊材质）+「全部」，第二轴按族过滤预设按钮。family_issues() 自检无重复归族、无幽灵键、无漏归类、无缺中文名；schema 下发 preset_families / preset_family_labels，前端只负责渲染不猜分组",

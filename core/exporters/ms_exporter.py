@@ -136,6 +136,12 @@ TEX_SLOTS_EXACT: dict[str, list[str]] = {
     "roughness":   ["texmap_roughness"],
     "displacement": ["texmap_displacement"],
     "opacity":     ["texmap_opacity"],
+    # 0.12.0 新增三通道。属性名按 V-Ray 6 的 texmap_* 惯例给出，
+    # 但**没有真机确认过**——mfFindSlotEx 会先精确名、再关键词兜底，
+    # 精确名写错不会炸脚本，只会落到 SKIP 并在自检里点名，属于可接受的降级。
+    "metalness":   ["texmap_metalness", "texmap_metal"],
+    "emissive":    ["texmap_self_illumination", "texmap_selfIllumination"],
+    "sheen":       ["texmap_sheen", "texmap_sheenGlossiness"],
 }
 
 TEX_SLOTS: dict[str, list[str]] = {
@@ -147,6 +153,9 @@ TEX_SLOTS: dict[str, list[str]] = {
     "__DISPLACE__": ["displacement"],
     "__AO__":       ["diffuse"],
     "__OPACITY__":  ["opacity"],
+    "__METALNESS__": ["metalness"],
+    "__EMISSIVE__": ["emissive"],
+    "__SHEEN__":    ["sheen"],
 }
 
 
@@ -180,6 +189,7 @@ from .tpl_common import (  # noqa: E402
     FUNCS as _TPL_FUNCS,
     ENV as _TPL_ENV,
     MID as _TPL_MID,
+    FALLBACK as _TPL_FALLBACK,
     TAIL as _TPL_TAIL,
 )
 from .tpl_vray import VRAY_FNS as _TPL_VRAY_FNS, VRAY_CREATE as _TPL_VRAY_CREATE  # noqa: E402
@@ -193,6 +203,7 @@ _TEMPLATE = (
     + _TPL_ENV
     + _TPL_VRAY_CREATE
     + _TPL_MID
+    + _TPL_FALLBACK
     + _TPL_TAIL
 )
 
@@ -252,6 +263,11 @@ CORONA_TEX_SLOTS_EXACT = {
     "bump":      ["baseBumpTexmap", "texmapBump", "texmapBumpMap"],
     "roughness": ["baseRoughnessTexmap", "texmapBaseRoughness", "texmapRoughness"],
     "opacity":   ["texmapOpacity"],
+    # Corona 物理材质的金属度只有贴图槽（没有标量金属度），这正是本通道存在的原因；
+    # 自发光/绒面的槽名按 Corona 的 *Texmap 命名推得，未见真机确认，靠关键词兜底 + SKIP 兜住
+    "metalness": ["metalnessTexmap", "texmapMetalness"],
+    "emissive":  ["selfIlluminationTexmap", "texmapSelfIllumination", "selfIllumTexmap"],
+    "sheen":     ["sheenTexmap", "sheenAmountTexmap", "texmapSheen"],
 }
 
 # Corona 的置换不走材质槽（Corona 材质无 displacement 输入），由收尾段的
@@ -262,6 +278,9 @@ _SLOT_MAP_CORONA = {
     "__HEIGHT__":    (["bump"],      "height"),
     "__ROUGHNESS__": (["roughness"], "roughness"),
     "__OPACITY__":   (["opacity"],   "opacity"),
+    "__METALNESS__": (["metalness"], "metalness"),
+    "__EMISSIVE__":  (["emissive"],  "emissive"),
+    "__SHEEN__":     (["sheen"],     "sheen"),
 }
 
 # Corona 的 AO 叠加：CoronaAO 节点自带 colorUnoccluded / colorOccluded，
@@ -315,8 +334,70 @@ _CORONA_TEMPLATE = (
     + _TPL_ENV
     + _TPL_CORONA_CREATE
     + _TPL_MID
+    + _TPL_FALLBACK
     + _TPL_TAIL
 )
+
+
+def _fallback_values(vray_props: dict, tex_paths: dict) -> dict:
+    """降级近似映射段的值填充（D4）。
+
+    为什么数值在 Python 侧算好再填进去：
+        脚本里再算一遍就等于有第二套换算规则。预览、预检、导出三处必须共用
+        params.resolve_vray 产出的同一批数，否则又会出现「预览看着对、Max 里不对」
+        的口径漂移。
+    口径：
+        * 颜色取 diffuse（贴图占位符形态时退回中性灰，不猜）；
+        * 粗糙度取 roughness 语义值（PhysicalMaterial 的 roughness 与语义同向，不取 1-x）；
+        * 透明**故意不下发**：VRayMtl 的折射率与 PhysicalMaterial 的 transparency
+          不是同向换算关系，硬折算出来的数值只会让人以为"近似成功"；
+        * 贴图路径按占位符实际有没有来给，缺就给空串，脚本侧整段跳过。
+    """
+    def _color(key: str, dflt: tuple) -> tuple:
+        c = vray_props.get(key)
+        if isinstance(c, (tuple, list)) and len(c) == 3:
+            try:
+                r, g, b = (max(0.0, min(1.0, float(x))) for x in c)
+                return (int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
+            except (TypeError, ValueError):
+                pass
+        return tuple(int(round(min(1.0, max(0.0, x)) * 255)) for x in dflt)
+
+    def _num(key: str, dflt: float, lo: float = -1e9, hi: float = 1e9) -> float:
+        try:
+            v = float(vray_props.get(key, dflt))
+        except (TypeError, ValueError):
+            v = float(dflt)
+        return max(lo, min(hi, v))
+
+    def _path(chan: str) -> str:
+        return _ms_escape(tex_paths.get(chan) or "")
+
+    fr, fg, fb_ = _color("diffuse", (0.8, 0.8, 0.8))
+    er, eg, eb = _color("selfIllumination", (1.0, 1.0, 1.0))
+    emis_on = "true" if vray_props.get("selfIllumination") is not None else "false"
+    emis_str = _num("selfIllumination_multiplier", 1.0, 0.0, 1000.0)
+    rough = _num("roughness", 0.5, 0.0, 1.0)
+    metal = _num("metalness", 0.0, 0.0, 1.0)
+    ior = _num("brdf_ior", 0.0, 0.0, 10.0)
+    bump_amt = _num("bump_multiplier", 1.0, 0.0, 10.0)
+
+    return {
+        "@@FB_R@@": str(fr), "@@FB_G@@": str(fg), "@@FB_B@@": str(fb_),
+        "@@FB_ER@@": str(er), "@@FB_EG@@": str(eg), "@@FB_EB@@": str(eb),
+        "@@FB_EMIS_ON@@": emis_on,
+        "@@FB_EMIS_STR@@": f"{emis_str:.4f}",
+        "@@FB_ROUGH@@": f"{rough:.4f}",
+        "@@FB_METAL@@": f"{metal:.4f}",
+        "@@FB_IOR@@": f"{ior:.4f}",
+        "@@FB_TRANS@@": "0.0",          # 故意不下发，理由见函数 docstring
+        "@@FB_BUMP_AMT@@": f"{bump_amt:.4f}",
+        "@@FB_ALBEDO@@": _path("albedo"),
+        "@@FB_ROUGH_TEX@@": _path("roughness"),
+        "@@FB_METAL_TEX@@": _path("metalness"),
+        "@@FB_NORMAL_TEX@@": _path("normal"),
+        "@@FB_HEIGHT_TEX@@": _path("height"),
+    }
 
 
 def build_mscript(
@@ -481,6 +562,9 @@ def build_mscript(
         "__DISPLACE__":  (["displacement"], "height"),
         "__OPACITY__":   (["opacity"],      "opacity"),
         "__DISP__":      (["displacement"], "height"),
+        "__METALNESS__": (["metalness"],    "metalness"),
+        "__EMISSIVE__":  (["emissive"],     "emissive"),
+        "__SHEEN__":     (["sheen"],        "sheen"),
     }
     slot_map = _SLOT_MAP_CORONA if is_corona else _SLOT_MAP_VRAY
 
@@ -657,6 +741,9 @@ def build_mscript(
     out = out.replace("@@LOGFILE@@", _ms_escape(logfile_path) if logfile_path else '""')
     out = out.replace("@@ASSIGNMENTS@@", assignments)
     out = out.replace("@@TEXTURES@@", textures)
+    # 降级近似映射段的值：占位符在模板里（_TPL_FALLBACK），这里一次性替换
+    for _k, _v in _fallback_values(vray_props, tex_paths).items():
+        out = out.replace(_k, _v)
     return out
 
 

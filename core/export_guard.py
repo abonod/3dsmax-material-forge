@@ -34,6 +34,10 @@ _CHANNEL_SWITCHES = (
     ("height", ("bump_on", "displacement_on")),
     ("ao", ("ao_on",)),
     ("opacity", ("opacity_on",)),
+    # 0.12.0 三通道：开关名与 Param.id 一一对应（只用于缺失提示，不阻断导出）
+    ("metalness", ("metalness_tex_on",)),
+    ("emissive", ("emissive_tex_on",)),
+    ("sheen", ("sheen_tex_on",)),
 )
 
 # 抓 .ms 里的贴图绝对路径：MaxScript 字符串里反斜杠是单写或双写，两种都吃
