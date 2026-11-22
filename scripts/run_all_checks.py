@@ -45,6 +45,10 @@ CHECKS = [
     # P4：目视取证生成器冒烟 + 结构校验。visual_gen_check 在临时目录里跑生成器，
     # 不往 out/ 写任何东西 —— 检查项必须无副作用，否则会把产物目录搞脏。
     ("visual_check",  "目视取证结构校验",      ["scripts/visual_gen_check.py"],   False),
+    # P3：真实世界尺寸 UV 的取证前置。这份探针不产出材质，只回答
+    # 「位图坐标类上有没有可写可回读的 real-world 属性名」——
+    # 拿到真机日志之前不写映射代码，避免重演 0.9.x 属性名靠推理的静默失效。
+    ("rw_probe",      "真实世界尺寸探针生成",  ["scripts/rw_probe_gen_check.py"], False),
     ("p_series",      "P0-P7 落地审计",        ["scripts/p_series_audit.py"],     False),
     ("p_series_neg",  "P0-P7 审计反例自测",     ["scripts/p_series_audit.py", "--selftest"], False),
     # 一键送进 Max 的 inbox 协议自测：跨进程 + 会让 Max 执行脚本，安全边界
