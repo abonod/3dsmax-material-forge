@@ -1,6 +1,6 @@
 ---
 name: 3dsmax-material-forge
-version: 0.11.1
+version: 0.11.2
 description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 V-Ray 或 Corona 材质脚本（.ms，V-Ray 侧 VRayMtl、Corona 侧 CoronaPhysicalMtl，含属性别名降级、贴图挂接、.mat 落库）。触发场景：用户要求「照这张图做个材质」「这面墙要这种质感」「帮我转成 PBR」「调 VRayMtl 的反射/粗糙度/清漆/凹凸/置换」「批量导出材质脚本」「做个壁纸/墙布/乳胶漆/铝合金(磨砂·拉丝)材质」「拉丝金属的各向异性方向怎么调」「这套材质给我出 Corona 版」「CoronaPhysicalMtl 的 baseRoughness / refractionAmount 怎么对应 V-Ray 参数」，或已有 .ms 在 Max 里执行报错、参数没生效需要按属性名失配排查；也用于扩展该工具（加参数、加属性别名、接 Arnold/Corona）。不用于建模几何体、最终渲染出图、GPU 生成本地贴图。"
 ---
 
@@ -96,8 +96,8 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 ├── README.md                    面向人的项目说明
 ├── app.py                       FastAPI 服务（上传/推导/导出/预检，端口 8765）
 ├── core/
-│   ├── params.py                参数注册表 PARAMS —— 唯一事实来源（61 项 / 6 分组）+ resolve_vray / resolve_corona 两套翻译层
-│   ├── version.py               版本号 SSOT（当前 0.9.0）+ 各版本变更摘要
+│   ├── params.py                参数注册表 PARAMS —— 唯一事实来源（62 项 / 6 分组）+ resolve_vray / resolve_corona 两套翻译层
+│   ├── version.py               版本号 SSOT（当前 ）+ 各版本变更摘要
 │   ├── preflight.py             导出前自检：环境探测 + 模板结构/取值域校验 + 综合报告
 │   ├── export_guard.py          导出后自检：贴图存在性 + .ms 引用断链 + 通道完整性
 │   ├── texture_engine.py        PBR 五通道推导（PIL + numpy，实测写出 albedo/normal/height/roughness/ao[/opacity]）
@@ -106,46 +106,51 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │       ├── ms_exporter.py       PROP_TARGETS / CORONA_PROP_TARGETS / TEX_SLOTS / 组装入口（按 renderer 切换）
 │       ├── tpl_common.py        两套渲染器共用的公共片段（落槽/材质库/日志）
 │       ├── tpl_vray.py          VRayMtl 专属：材质创建 + VRayDirt / VRay_法线贴图
-│       └── tpl_corona.py        Corona 专属：CoronaPhysicalMtl/Legacy 降级 + CoronaNormal / CoronaAO
+│       └── tpl_corona.py        Corona 专属：CoronaPhysicalMtl/Legacy 降级 + Corona法线 / CoronaAO
 ├── web/                         前端（three.js 材质球预览，新手/中级/进阶三档）
 ├── scripts/
 │   ├── verify_ms.py             .ms 静态体检
 │   ├── regen_legacy.py          历史产物批量重导出 / 坏写法修复（默认 dry-run）
-│   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，26 项断言）
-│   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 61 项与档位一致性
-│   ├── export_guard_check.py    导出行为断言 33 项：材质隔离 / 自检 / 上传边界 / TTL
-│   ├── run_all_checks.py        统一检查入口（6 项串跑，--fast 跳过 Edge 截图）
+│   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，20 项断言）
+│   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 62 项与档位一致性
+│   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
+│   ├── run_all_checks.py        统一检查入口（14 项串跑，--fast 跳过 Edge 截图）
 │   ├── capture_presets.py       真机 GUI 出图基线（逐预设截预览球 → reports/baseline/）
 │   ├── package_skill.py         一键体检 + 打包 + 版本号同步 + dist 瘦身 → ../dist/*.skill
 │   └── reports/                 上述脚本的 JSON 报告与截图 / baseline 基线图
 ├── references/                  按需加载的深入文档
 ├── docs/                        决策记录与参数缺口分析（wallpaper-pattern-route.md 等）
 ├── run_all_checks.ps1          统一检查的 PowerShell 包装（探测解释器，转调 run_all_checks.py）
-├── evals/                       evals.json 回归用例（17 条）+ runner.py 机器评分器（答案/产物双断言）
+├── evals/                       evals.json 回归用例（20 条）+ runner.py 机器评分器（答案/产物双断言）
 ├── probe/                       历史探测脚本，不参与运行
 └── output/<job_id>/             source.png + textures/（中间过程）+ export/<材质名>/（.ms + textures/，一材质一目录；Corona 目录名带 _corona 后缀隔离）
 ```
 
-## 参数体系：61 项怎么组织的
+## 参数体系：62 项怎么组织的
 
 `core/params.py` 是单一事实来源，一条 `Param` 同时驱动面板、WebGL 预览、MaxScript 映射三条链。
 
-| 分组 | 数量 | 什么时候看 |
-|------|------|------------|
-| 基础 | 9 | 基础色、金属模式、粗糙档位、反射开关、菲涅尔 IOR 等 |
-| UV | 2 | 贴图旋转、偏移 |
-| 细节 | 9 | 凹凸、置换、AO 叠加、污渍 |
-| 表面 | 26 | 反射/清漆/各向异性/SSS 等表面光学 |
-| 质感 | 9 | 程序化微结构（纯色模式用）：麻面尺度、起伏强度、云状不匀、**低频区域遮罩强度/尺度**、染色模式等 |
-| 进阶 | 6 | 雾色、BRDF 模式、渲染器相关 |
+<!-- AUTO:params begin -->
+> 本节由 `scripts/docs_sync.py` 从代码现场生成，勿手改；改代码后跑 `python scripts/docs_sync.py --write`。
 
-三档暴露（v0.8.2 起）：新手 5 项（`BEGINNER_IDS`）、中级 30 项（新手 + `INTERMEDIATE_IDS` 25 项）、进阶 61 项全平铺。新手可见的 5 项**不是**简单取「基础」组：`base_color / metal_mode / rough_level / normal_strength / uv_tiling`（把基础组里的反射开关、菲涅尔 IOR 换成了法线强度和 UV 平铺，因为这两项对新手观感影响最大）。三档划分由后端 `tiers` 下发、互斥且并集等于 61 项；预设不是"改几个默认值"，而是 `preset_snapshots()` 展开出的**61 项完整快照**，套用即整体替换——所以切预设不会残留上一个材质的开关。
+| 分组 | 数量 | 组内参数（前 4 个） |
+|------|------|------------------|
+| 基础 | 9 | 基础颜色、金属模式、金属反射染色、粗糙度档位 等 |
+| UV | 2 | UV 平铺、UV 旋转 |
+| 细节 | 9 | 法线贴图、法线强度、凹凸贴图、凹凸强度 等 |
+| 质感 | 9 | 程序化微结构、纹理类型、纹理尺寸、起伏强度 等 |
+| 表面 | 27 | 清漆层、自发光、折射/透明、各向异性 等 |
+| 进阶 | 6 | 雾化（体积感）、雾化颜色、雾化浓度、次表面散射 SSS 等 |
+| **合计** | **62** | 6 个分组 |
+<!-- AUTO:params end -->
+
+三档暴露（v0.8.2 起）：新手 5 项（`BEGINNER_IDS`）、中级 30 项（新手 + `INTERMEDIATE_IDS` 25 项）、进阶 62 项全平铺。新手可见的 5 项**不是**简单取「基础」组：`base_color / metal_mode / rough_level / normal_strength / uv_tiling`（把基础组里的反射开关、菲涅尔 IOR 换成了法线强度和 UV 平铺，因为这两项对新手观感影响最大）。三档划分由后端 `tiers` 下发、互斥且并集等于 61 项；预设不是"改几个默认值"，而是 `preset_snapshots()` 展开出的**61 项完整快照**，套用即整体替换——所以切预设不会残留上一个材质的开关。
 
 加参数只改 `params.py`，加完跑一遍 `python scripts/run_all_checks.py`（或 `--fast` 跳过两个 Edge 截图检查）即可，不要手改 `app.js`。
 
 ## 双渲染器目标：V-Ray / Corona（0.9.0 引入，0.9.1 / 0.10.0 真机核对）
 
-同一套 61 参数、同一份贴图，可以出两套脚本。差别只在最后一公里：语义键 → 真实属性名的翻译，以及节点包装。
+同一套 62 参数、同一份贴图，可以出两套脚本。差别只在最后一公里：语义键 → 真实属性名的翻译，以及节点包装。
 
 ### 参数怎么翻过去的
 
@@ -157,9 +162,9 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 | 色散 | 数值 + `refraction_dispersion_on` | `dispersion`（默认 40）+ `dispersionEnable=true` | 两段式：光给数值不开开关不生效 |
 | 金属度 | `metalness`（0–1 连续） | `metalnessMode`（整数 0/1） | 只能二值化，按 0.5 阈值取整；另有 `metalnessTexmap` 走贴图；**不存在 `baseMetalness`** |
 | 薄膜 | `thinFilm_on` + min/max 厚度 | 无 | 物理材质没有薄膜层（无任何 `thinFilm*` 属性），该语义两端都未搬，导出时进 `mfDropped` |
-| 法线 | `VRay_法线贴图` / `VRayNormalMap` | `CoronaNormal` 包装位图 | 候选链探测；缺 CoronaNormal 类时退「法线直挂 bump 槽」并 WARN |
+| 法线 | `VRay_法线贴图` / `VRayNormalMap` | `Corona法线` 包装位图 | 候选链探测；缺 `Corona法线` 类时退「法线直挂 bump 槽」并 WARN |
 | AO | `VRay_污垢` | `CoronaAO` | 都叠在漫反射/基色上 |
-| 置换 | `VRayDisplacementMod` | `CoronaDisplacementMod` | 按当前渲染器优先排序候选链 |
+| 置换 | `VRayDisplacementMod` | `Corona置换修改器` | 按当前渲染器优先排序候选链 |
 
 ### 会丢什么，为什么可以丢
 
@@ -190,15 +195,33 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 
 Corona 的类名在中文版被本地化：物理材质 `classof` 显示为 **`_Corona物理材质`**，直接 `execute "CoronaPhysicalMtl()"` 在本机会失败（旧文档认为「Corona 类名是英文注册、不用本地化探测」是错的）。脚本统一走三级候选链：
 
-1. 英文字面名（`CoronaPhysicalMtl` / `CoronaLegacyMtl` / `CoronaNormal` / `CoronaAO`）
+1. 类名字面名（`CoronaPhysicalMtl` / `CoronaLegacyMtl` / `Corona法线` / `CoronaAO`）；注意法线包装器与置换修改器只有中文本地化注册名，英文写法已被真机证伪（清单见上）
 2. 中文本地化名（`_Corona物理材质` / `Corona物理材质` / `_CoronaLegacyMtl` …）
 3. 属性特征扫描 `Material.classes`：**同时具备 `baseRoughness` 与 `metalnessMode`** 的材质类只可能是物理材质，与类名文本无关
 
 第 3 级是兜底，大版本改名也不会整段失效；Legacy 侧的特征判据是 `colorDiffuse` + `glossiness`。
 
+真机类名与属性名以注册表为准，下表由脚本生成：
+
+<!-- AUTO:classnames begin -->
+> 本节由 `scripts/docs_sync.py` 从代码现场生成，勿手改；改代码后跑 `python scripts/docs_sync.py --write`。
+
+| 项 | V-Ray | Corona | 来源 |
+|----|-------|--------|------|
+| 材质类 | `VRayMtl` | `_Corona物理材质` | 真机 classof 回读 |
+| 法线包装器类 | `VRay_法线贴图` | `Corona法线` | 真机类表枚举 |
+| 法线内层槽 | `normal_map` | `normalMap` | 真机属性回读 |
+| 凹凸槽 | `texmap_bump` | `baseBumpTexmap` | 真机属性回读 |
+| 置换修改器类 | `VRayDisplacementMod` | `Corona置换修改器` | 真机 Modifier 类表 |
+
+另有 7 个类名/属性名写法已被真机证伪（英文注册名在本机不存在），文档与脚本都不得再把它们当候选名使用；逐条清单见 `core/ondevice_registry.json` 的 `*_rejected` 字段。
+<!-- AUTO:classnames end -->
+
 ### 本机没装 Corona 怎么办
 
 `preflight` 探测不到 Corona 只给 **WARN 不阻断**：脚本自带 `物理材质 → CoronaLegacyMtl → PhysicalMaterial` 降级链，装不上 Corona 时材质仍会以 Physical 落地，属性名对不上的逐项记 `[FAIL]` 而不是整体中断。
+
+**降级是降级，不是近似**：`PhysicalMaterial` 上不存在 V-Ray / Corona 的专属属性，落到这一步时脚本**不写入任何参数与贴图**（后续逐项 `[SKIP]` 就是证据），最终只得到一个同名空材质球，材质名带 `_降级_` 前缀便于识别。V-Ray 与 Corona 两条降级分支的日志都明确写出「裸材质 / 不做任何还原补偿」，不再声称「参数会尽量映射」——旧文案与实现不符，已按实现改掉。需要正确效果唯一的路是装好渲染器后重新导出。
 
 ## 交付前必须做的一步：静态体检
 
@@ -388,7 +411,7 @@ output/<job_id>/
 
 `nb_overlay=true`（默认）时两层都进包装器：
 - V-Ray：法线 → `VRayNormalMap.normal_map`，凹凸 → 其 `bump_map`，材质 `texmap_bump` 只挂包装器本体
-- Corona：法线 → `CoronaNormal.normalMap`，凹凸 → `additionalBump`，**并且必须置位 `additionalBumpOn` 并回读确认为 true**（只写贴图不写开关，真机表现为"凹凸挂上了但完全没效果"，旧实现就是这样静默成功的）
+- Corona：法线 → `Corona法线.normalMap`，凹凸 → `additionalBump`，**并且必须置位 `additionalBumpOn` 并回读确认为 true**（只写贴图不写开关，真机表现为"凹凸挂上了但完全没效果"，旧实现就是这样静默成功的）
 
 强度分两层：法线强度归材质 `bump_multiplier`（节点无独立法线强度属性），凹凸强度归节点 `bump_multiplier`。不要把两者写进同一个含 `mult` 字样的循环。
 
@@ -401,7 +424,7 @@ output/<job_id>/
 
 ## 版本与打包
 
-版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.1`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
+版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.2`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
 
 ```
 python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScript 静态体检）→ 打包 → 写清单

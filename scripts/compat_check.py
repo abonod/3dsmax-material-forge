@@ -76,6 +76,13 @@ def check_b_aliases():
         missing_zh = [a for a in aliases["zh"] if a not in text]
         # 中文名允许"类表兜底"式处理：只要模板里出现过该中文名即可，不要求逐个命中，
         # 但英文名必须至少出现一个，否则模板连主流注册名都没认。
+        # 特例：en 为空表示该对象在真机上根本没有英文注册名（已证伪，见
+        # ondevice_registry.json 的 *_rejected），此时只要求中文名全覆盖。
+        if not aliases["en"]:
+            ok("B %s：无英文注册名（真机证伪），只校验中文本地化名 %s" % (key, aliases["zh"]))
+            if missing_zh:
+                bad("B %s：模板缺少中文本地化名 %s（中文版 Max 会静默落空）" % (key, missing_zh))
+            continue
         if all(a not in text for a in aliases["en"]):
             bad("B %s：模板中未出现任何英文注册名 %s" % (key, aliases["en"]))
         elif missing_en:
@@ -156,12 +163,68 @@ def check_d_ondevice_props():
                 % (rk, field, val, rk))
 
 
+def check_e_rejected_names():
+    """E. 证伪类名零残留：真机已证伪的名字不许留在模板、兼容表与文档里。
+
+    为什么必须硬校验：审计抓到的正是这个 —— 文档把 `CoronaNormal` /
+    `CoronaDisplacementMod` 当成 Corona 法线包装器与置换修改器的候选名写给用户，
+    而真机注册表早就把它们放进了 rejected 字段（英文名在本机 execute 必然落空）。
+    用户照着文档去排查只会越查越糊。这里让「文档/代码出现证伪名」必然退出码非 0。
+    """
+    import json
+    import glob
+    reg_path = os.path.join(ROOT, "core", "ondevice_registry.json")
+    if not os.path.exists(reg_path):
+        bad("E 缺少 core/ondevice_registry.json，无法做证伪名扫描")
+        return
+    reg = json.load(open(reg_path, encoding="utf-8")).get("renderers", {})
+    toks = []
+    for rk in reg:
+        for field, val in reg[rk].items():
+            if field.endswith("_rejected") and isinstance(val, list):
+                toks += val
+    # 属性级证伪名（normal / dispersion 这类单词级）不适合做全仓字符串扫描，
+    # 只保留类名级（首字母大写、长度 > 4）来扫，避免误报普通词。
+    toks = sorted({t for t in toks if len(t) > 4 and t[0].isupper()})
+    if not toks:
+        bad("E 注册表里没有任何 rejected 类名，证伪清单疑似丢失")
+        return
+
+    targets = [
+        os.path.join(ROOT, "core", "compat.py"),
+        os.path.join(ROOT, "core", "exporters", "tpl_corona.py"),
+        os.path.join(ROOT, "core", "exporters", "tpl_vray.py"),
+        os.path.join(ROOT, "core", "exporters", "tpl_common.py"),
+        os.path.join(ROOT, "core", "exporters", "ms_exporter.py"),
+        os.path.join(ROOT, "SKILL.md"),
+        os.path.join(ROOT, "README.md"),
+    ]
+    targets += sorted(glob.glob(os.path.join(ROOT, "references", "*.md")))
+    targets += sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
+
+    hits = []
+    for fp in targets:
+        if not os.path.exists(fp):
+            continue
+        body = open(fp, encoding="utf-8", errors="replace").read()
+        for i, line in enumerate(body.splitlines(), 1):
+            for t in toks:
+                if t in line:
+                    hits.append("%s:%d 残留证伪名 %s" % (os.path.relpath(fp, ROOT), i, t))
+    if hits:
+        for h in hits[:20]:
+            bad("E " + h)
+    else:
+        ok("E 证伪类名零残留（扫描 %d 个名字 / %d 个文件）" % (len(toks), len(targets)))
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     check_a_doc()
     check_b_aliases()
     check_c_honesty()
     check_d_ondevice_props()
+    check_e_rejected_names()
     for s in OKS:
         print(s)
     for s in FAILS:

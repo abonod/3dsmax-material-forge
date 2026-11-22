@@ -54,8 +54,8 @@
 | `vray_mtl` | `VRayMtl`, `VRay_Mtl` | `VRay_材质`, `VRayMtl` |
 | `vray_normalmap` | `VRayNormalMap` | `VRay_法线贴图`, `VRayNormalMap` |
 | `corona_mtl` | `CoronaMtl`, `CoronaPhysicalMtl` | `_Corona物理材质`, `Corona物理材质` |
-| `corona_normal` | `CoronaNormal` | `Corona法线`, `CoronaNormal` |
-| `corona_disp` | `CoronaDisplacementMod` | `Corona置换修改器`, `CoronaDisplacementMod` |
+| `corona_normal` | `` | `Corona法线` |
+| `corona_disp` | `` | `Corona置换修改器` |
 
 ## 现场取证方法（把 untested 变 verified 的唯一路径）
 

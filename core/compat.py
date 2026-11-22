@@ -31,8 +31,12 @@ LANG_ALIASES = {
     "vray_mtl":        {"en": ["VRayMtl", "VRay_Mtl"], "zh": ["VRay_材质", "VRayMtl"]},
     "vray_normalmap":  {"en": ["VRayNormalMap"],       "zh": ["VRay_法线贴图", "VRayNormalMap"]},
     "corona_mtl":      {"en": ["CoronaMtl", "CoronaPhysicalMtl"], "zh": ["_Corona物理材质", "Corona物理材质"]},
-    "corona_normal":   {"en": ["CoronaNormal"],        "zh": ["Corona法线", "CoronaNormal"]},
-    "corona_disp":     {"en": ["CoronaDisplacementMod"], "zh": ["Corona置换修改器", "CoronaDisplacementMod"]},
+    # 2026-11-19 真机（Corona 12 + Max 2024 中文版）已证伪：Corona 的法线包装器与置换
+    # 修改器都没有英文注册名（英文名 execute 求值必然落空），只有中文本地化注册名。
+    # 证伪清单固化在 core/ondevice_registry.json 的 *_rejected 字段，模板候选链与文档
+    # 都不许再把英文名当候选（scripts/compat_check.py 的 E 项会硬校验）。
+    "corona_normal":   {"en": [], "zh": ["Corona法线"]},
+    "corona_disp":     {"en": [], "zh": ["Corona置换修改器"]},
 }
 
 # ---------------------------------------------------------------------------

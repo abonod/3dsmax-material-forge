@@ -135,6 +135,29 @@ python scripts/p_series_audit.py --selftest # 6 个反例，验证判据有判�
 2. 新增 `verify_evidence_chain()`：出包前先**预演**将要进包的文件清单，凡代码/文档引用的 `docs/evidence/*` 不在清单内即中止打包，dist 保持原样、不产半成品包；
 3. 同一实现被 `p_series_audit.py` 的 P7 判据复用，并配反例（把白名单改回空必须 FAIL）——否则打包门禁与日常审计会变成两套各自漂移的判据。
 
+## 3.3 0.11.2：四项静态缺陷修复（2026-11-22）
+
+这一节的四项都不是「新能力」，而是「原来在说谎的地方改回说实话」。按台账规则第 2 条，
+以下全部只算**机制在位 + 静态验证**，不进「已验证」列。
+
+| # | 缺陷 | 级别 | 修复落点（代码事实） | 验证方式 |
+|---|---|---|---|---|
+| 1 | 导出后自检校验的是内存 draft 字符串，磁盘上的 `.ms` 与 draft 不一致时仍判 ok=True——用户真正拿到的那份文件从未被检查过 | 高 | `core/export_guard.py:166` `check_export_file()` 改为读盘 + 按声明编码严格解码，文件不存在 / 编码无法识别 / 内容为空一律 ok=False；`core/exporters/ms_exporter.py:640` `export_with_meta()` 回传 path / encoding / bytes / sha256 / chars，`export()`（:698）退化为薄封装 | `scripts/export_guard_check.py` 的 `part_selfcheck_disk` 反例（磁盘放坏文件必须判 FAIL）+ run_all_checks 的 `export_guard` 项 |
+| 2 | 脚本按 GBK 落盘（中文版 Max fileIn 需要），旧自检用 utf-8 读，中文脚本要么解码异常要么读出错字 | 高 | `core/export_guard.py:147` `_detect_encoding()` 改为 utf-8 严格 → gbk 严格两级探测，两级都解不开即报「编码无法识别」；`app.py:588` 改调 `check_export_file()`，`app.py:611` 把 `script_encoding` 回给前端 | 同上 |
+| 3 | 降级到 PhysicalMaterial 时脚本一个参数、一张贴图都不写，旧文案却写「参数会尽量映射」，把失败描述成近似 | 中 | `core/exporters/tpl_vray.py:185` / `core/exporters/tpl_corona.py:300` 改为「裸材质：不写入任何参数/贴图（后续每个 [SKIP] 都源于此）」；`SKILL.md:224` 新增「降级是降级，不是近似」段 | 文案与降级分支逐字核对：该分支只有 mfLog 与 mf_DEGRADED 计数，无任何属性/贴图赋值 |
+| 4 | 文档数字与类名靠手抄，已出现「文档 61 项 / 代码 62 项」漂移；文档还留着真机已证伪的英文注册名 | 中 | 新增 `scripts/docs_sync.py`：参数 62 项 / 6 分组 / 16 预设 / 20 条 evals / 14 项检查 / 版本号全部由代码现场计算后按「定位 + 重写」回写，分组表与类名对照表放在 AUTO 标记块整块生成；`core/compat.py:38-39` 清空两项已证伪英文名（`en: []`，只留真机确认的中文名）；`scripts/compat_check.py:167` 新增 E 项证伪名零残留；`scripts/package_skill.py` 打包前文档门禁（不受 `--skip-verify` 绕过） | run_all_checks 的 `docs_sync` 与 `docs_sync_neg`（3 例反例：行内数字改错 / AUTO 块被手改 / 证伪名写回文档）+ `compat` 项 E |
+
+顺带修掉的两个门禁自身缺口：
+
+- `scripts/docs_sync.py` 用 `getattr(version, "VERSION", "")` 取版本号，而 `core/version.py` 只定义了 `__version__`，取到空串会把文档版本号写成「当前 」（静默清空而非报错）。已补 `VERSION` 别名（`core/version.py:21`）。
+- `SKILL.md`「版本与打包」段的版本号带反引号，与 `inline_subs` 的既有模式对不上，等于**版本号在文档里从来没被同步过**。已补 `（当前 `x.y.z`）` 的受管模式，bump 之后由脚本改写。
+
+**边界声明**：以上四项全部为静态与生成侧验证，本轮**没有**启动 3ds Max / 3dsmaxbatch，MAXScript 未做真机编译；
+真机结论仍然只有 0.11.1 那一版单机基线（Max 2024 中文版 / V-Ray 6.20.06 / Corona 12），
+跨版本条目一律保持 supported / untested，不因本轮通过静态门禁而上调。
+
+---
+
 ## 4. 这张台账怎么用
 
 - **对外说明能力时**：只引「已验证」列，`无` 的行必须说"代码路径已覆盖，未在目标版本验证"。

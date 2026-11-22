@@ -25,6 +25,7 @@ MaxScript 语法红线（本文件已逐条规避）：
 from __future__ import annotations
 
 import datetime
+import hashlib
 import os
 import shutil
 from typing import Any
@@ -249,7 +250,8 @@ CORONA_TEX_SLOTS_EXACT = {
 }
 
 # Corona 的置换不走材质槽（Corona 材质无 displacement 输入），由收尾段的
-# CoronaDisplacementMod 修改器承担，因此这里不列 __DISPLACE__ / __DISP__。
+# Corona置换修改器 承担（无英文注册名，见 registry 的 displacement_modifier_rejected），
+# 因此这里不列 __DISPLACE__ / __DISP__。
 _SLOT_MAP_CORONA = {
     "__DIFFUSE__":   (["base"],      "albedo"),
     "__HEIGHT__":    (["bump"],      "height"),
@@ -438,7 +440,7 @@ def build_mscript(
             msg = PROP_NO_SCALAR[str(k)]
             if is_corona:
                 # 真机 Modifier.classes 枚举实证：Corona 置换修改器注册名已本地化为
-                # 「Corona置换修改器」，英文 CoronaDisplacementMod 在本机不存在
+                # 「Corona置换修改器」；英文名在本机不存在（真机证伪，见 registry 的 displacement_modifier_rejected）
                 msg = msg.replace("VRayDisplacementMod", "Corona置换修改器")
             lines.append(f'    mfLog "  [INFO] {k}：{msg}"')
             continue
@@ -618,11 +620,33 @@ def build_mscript(
     return out
 
 
-def export(material_name: str, vray_props: dict, tex_paths: dict,
-           out_dir: str, matlib_path: str = "", auto_assign: bool = True,
-           pack_textures: bool = True, logfile_path: str = "",
-           renderer: str = "vray") -> str:
-    """导出 .ms 文件，返回路径
+def _write_script(path: str, script: str) -> str:
+    """按「GBK 优先、UTF-8 兜底」落盘，返回真正写进文件的编码名。
+
+    编码必须回传给调用方：导出后自检要按同一编码回读。此前自检固定用
+    gbk + errors="replace" 读盘，遇到 UTF-8 兜底产物会把正常中文解成乱码，
+    再把好脚本误判成贴图断链/材质名错乱（乱码误判的根源）。
+    """
+    try:
+        with open(path, "w", encoding="gbk", newline="\r\n") as f:
+            f.write(script)
+        return "gbk"
+    except UnicodeEncodeError:
+        with open(path, "w", encoding="utf-8", newline="\r\n") as f:
+            f.write(script)
+        return "utf-8"
+
+
+def export_with_meta(material_name: str, vray_props: dict, tex_paths: dict,
+                     out_dir: str, matlib_path: str = "", auto_assign: bool = True,
+                     pack_textures: bool = True, logfile_path: str = "",
+                     renderer: str = "vray") -> dict:
+    """导出 .ms 并回传落盘证据：path / encoding / bytes / sha256。
+
+    为什么单独要这一层：导出后自检的唯一合法输入是「磁盘上那份 .ms」，
+    而「写盘时到底用了哪个编码」只有写盘这一侧知道，猜编码必然出错。
+    因此 write → 按实际编码严格回读 → 与内存脚本逐字符比对，不一致直接抛错，
+    让导出当场失败，而不是把半截/乱码文件当成功交给用户。
 
     编码说明：MaxScript 在中文 Windows 上按系统 ANSI（GBK）解析脚本文件，
     带 BOM 的 UTF-8 容易导致中文材质名/路径乱码甚至语法报错，因此优先写 GBK；
@@ -656,13 +680,29 @@ def export(material_name: str, vray_props: dict, tex_paths: dict,
 
     script = build_mscript(material_name, vray_props, tex_paths, matlib_path, auto_assign,
                            logfile_path, renderer=renderer)
-    try:
-        with open(path, "w", encoding="gbk", newline="\r\n") as f:
-            f.write(script)
-    except UnicodeEncodeError:
-        with open(path, "w", encoding="utf-8", newline="\r\n") as f:
-            f.write(script)
-    return path
+    encoding = _write_script(path, script)
+    raw = open(path, "rb").read()
+    with open(path, "r", encoding=encoding, newline="") as f:
+        disk_text = f.read()
+    if disk_text.replace("\r\n", "\n") != script.replace("\r\n", "\n"):
+        raise RuntimeError(f"写盘回读不一致（{encoding}）：{path}")
+    return {
+        "path": path,
+        "encoding": encoding,
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "chars": len(script),
+    }
+
+
+def export(material_name: str, vray_props: dict, tex_paths: dict,
+           out_dir: str, matlib_path: str = "", auto_assign: bool = True,
+           pack_textures: bool = True, logfile_path: str = "",
+           renderer: str = "vray") -> str:
+    """导出 .ms 文件，返回路径（保持旧接口；需要落盘证据请用 export_with_meta）"""
+    return export_with_meta(material_name, vray_props, tex_paths, out_dir,
+                            matlib_path, auto_assign, pack_textures,
+                            logfile_path, renderer)["path"]
 
 
 if __name__ == "__main__":

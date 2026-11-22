@@ -545,7 +545,7 @@ async def export(payload: dict):
         )
 
     try:
-        ms_path = ms_exporter.export(
+        ms_info = ms_exporter.export_with_meta(
             material_name=mat_name,
             vray_props=vray_props,
             tex_paths=final_tex,
@@ -557,6 +557,7 @@ async def export(payload: dict):
         )
     except Exception as e:
         raise HTTPException(500, f"导出失败: {e}")
+    ms_path = ms_info["path"]
 
     # 附一份参数快照，便于复现
     snapshot = export_dir / "material_params.json"
@@ -574,18 +575,22 @@ async def export(payload: dict):
         encoding="utf-8",
     )
 
-    # ---------- 导出后自检：产物在不在、脚本引用有没有断链 ----------
+    # ---------- 导出后自检：唯一校验对象是磁盘上的 .ms ----------
     # 以前到这里直接 return：贴图复制失败在 ms_exporter 里是 except: pass，
     # 用户看到「导出成功」，进 Max 跑脚本才在加载贴图那一行炸。
     # 这里把判定口径统一交给 export_guard，与 preflight、evals 共用同一套规则。
-    try:
-        with open(ms_path, encoding="gbk", errors="replace") as f:
-            final_script = f.read()
-    except Exception:
-        final_script = draft
-    selfcheck = export_guard.check_export(
-        final_script, final_tex, merged_values,
-        out_dir=str(export_dir), has_source=job.get("source") is not None)
+    #
+    # 假通过的两条老路都已封死：
+    # 1) 读盘异常不再把内存 draft 塞进自检（那等于"没读到也报通过"）；
+    # 2) 不再用 gbk 加宽松错误策略硬解，改为按写盘时回传的真实编码严格回读，
+    #    否则 UTF-8 兜底产物会被解成乱码并被误判成贴图断链。
+    # 读盘失败 / 编码不符 / 内容为空 → selfcheck.ok=False，直接判 FAIL。
+    selfcheck = export_guard.check_export_file(
+        ms_path, final_tex, merged_values,
+        out_dir=str(export_dir),
+        has_source=job.get("source") is not None,
+        encoding=ms_info["encoding"],
+    )
     selfcheck["dir"] = str(export_dir)
 
     note = "在 3ds Max 中执行 菜单 Scripting > Run Script，选择该 .ms 文件即可生成材质球"
@@ -603,6 +608,7 @@ async def export(payload: dict):
         "renderer": renderer,
         "report": report,
         "selfcheck": selfcheck,
+        "script_encoding": ms_info["encoding"],
         "auto_assign": auto_assign,
         "note": note,
     }

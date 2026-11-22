@@ -113,6 +113,75 @@ def part_selfcheck(out_dir):
     check("opacity" not in solid, "纯色模式不期望 opacity（实际 %s）" % solid)
 
 
+def part_selfcheck_disk(job):
+    print("[2b] 自检只认磁盘：读盘失败/编码不符必须判 FAIL，不吃内存草稿")
+    base = {"job_id": job, "values": {}}
+
+    # 2b-1 正常链路：自检对象就是磁盘上那份 .ms，且编码来自写盘侧
+    one = asyncio.run(A.export({**base, "material_name": "自检_磁盘"}))
+    sc = one.get("selfcheck") or {}
+    src = sc.get("source") or {}
+    check(sc.get("ok") is True, "正常导出判 ok")
+    check(os.path.abspath(str(src.get("file"))) == os.path.abspath(str(one.get("ms_path"))),
+          "自检对象 = 落盘 .ms（%s）" % os.path.basename(str(src.get("file"))))
+    check(src.get("encoding") == one.get("script_encoding"),
+          "自检编码 = 实际写盘编码（%s）" % (src.get("encoding"),))
+    check(int(src.get("bytes") or 0) > 0, "自检读到非空文件（%s 字节）" % (src.get("bytes"),))
+
+    # 2b-2 乱码误判回归：材质名带 GBK 编不出的字符 → 导出层走 UTF-8 兜底
+    #       （preflight 会拦这类名字，这里绕过 UI 直接打导出层，专测回读编码）
+    utf_dir = str(Path(tempfile.mkdtemp(prefix="mf_utf8_")))
+    try:
+        meta = A.ms_exporter.export_with_meta(
+            material_name="墙面🔥", vray_props={}, tex_paths={}, out_dir=utf_dir,
+            pack_textures=False)
+        check(meta["encoding"] == "utf-8",
+              "UTF-8 兜底被触发（encoding=%s）" % (meta["encoding"],))
+        good = export_guard.check_export_file(
+            meta["path"], {}, A.params.default_values(), out_dir=utf_dir,
+            has_source=False, encoding=meta["encoding"])
+        check(good["ok"] is True, "UTF-8 产物按真实编码回读判 ok（GBK 硬解乱码误判已消除）")
+        wrong = export_guard.check_export_file(
+            meta["path"], {}, A.params.default_values(), out_dir=utf_dir,
+            has_source=False, encoding="gbk")
+        check(wrong["ok"] is False and "读盘失败" in str(wrong.get("file_error") or ""),
+              "编码不符（UTF-8 内容按 GBK 读）判 FAIL：%s" % (wrong.get("file_error"),))
+    finally:
+        import shutil as _sh
+        _sh.rmtree(utf_dir, ignore_errors=True)
+
+    # 2b-3 / 2b-4 读盘失败与空文件：一律 FAIL，没有"回退内存草稿"这条路
+    tmp = Path(tempfile.mkdtemp(prefix="mf_disk_"))
+    try:
+        ghost = str(tmp / "nope.ms")
+        sc2 = export_guard.check_export_file(ghost, {}, A.params.default_values())
+        check(sc2["ok"] is False and "读盘失败" in str(sc2.get("file_error") or ""),
+              "文件不存在判 FAIL（不回退草稿）：%s" % (sc2.get("file_error"),))
+
+        empty = tmp / "empty.ms"
+        empty.write_bytes(b"")
+        sc3 = export_guard.check_export_file(str(empty), {}, A.params.default_values())
+        check(sc3["ok"] is False and "为空" in str(sc3.get("file_error") or ""),
+              "空脚本判 FAIL：%s" % (sc3.get("file_error"),))
+    finally:
+        for f in tmp.glob("*"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+        try:
+            tmp.rmdir()
+        except OSError:
+            pass
+
+    # 2b-5 源码层护栏：假通过的两条老路不许回来
+    app_src = Path(ROOT, "app.py").read_text(encoding="utf-8")
+    check('errors="replace"' not in app_src, 'app.py 不再用 errors="replace" 硬解脚本')
+    check("export_guard.check_export(" not in app_src,
+          "app.py 自检不再直接传内存文本（必须走 check_export_file）")
+    check("final_script = draft" not in app_src, "app.py 不再把内存 draft 回退给自检")
+
+
 def part_limits():
     print("[3] 上传边界：超限必须被拒，且不进内存")
     from fastapi import HTTPException
@@ -162,6 +231,7 @@ def part_lifecycle(job):
 def main():
     job, out_dir = part_isolation()
     part_selfcheck(out_dir)
+    part_selfcheck_disk(job)
     part_limits()
     part_lifecycle(job)
     print()

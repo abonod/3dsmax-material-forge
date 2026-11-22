@@ -6,7 +6,7 @@
        降级 —— 两者的属性名完全不同，候选链必须按「先物理后 Legacy」的顺序各自命中。
     2. 粗糙度语义相反：V-Ray 用 glossiness（0=粗糙），Corona 用 roughness（0=光滑）。
        数值转换在 Python 侧（params.resolve_corona）完成，脚本只负责写。
-    3. 法线要走 CoronaNormal 节点、置换要走 CoronaDisplacementMod 修改器。
+    3. 法线要走 Corona法线 节点、置换要走 Corona置换修改器（真机注册名是中文，英文名已证伪）。
 
 类名为什么用 execute 候选链而不是直接 new：
     Corona 的类注册名在不同大版本 / 不同语言包里出现过 CoronaPhysicalMtl_Fake / _CoronaPhysicalMtl
@@ -96,16 +96,16 @@ CORONA_FNS = r"""    -- ---------------- Corona 类名解析（候选链，全�
         undefined
     )
 
-    -- 法线：Corona 官方要求法线贴图经 CoronaNormal 节点包装
+    -- 法线：Corona 官方要求法线贴图经 Corona法线 节点包装
     --（直接挂 bitmap 会按 sRGB 解读法线 RGB，导致表面发灰、凹凸发平）。
-    fn mfCoronaNormalClass = (
+    fn mfNormalWrapClass = (
         -- 2026-11-19 真机（Corona 12 + Max 2024 中文版）TextureMap 枚举实证：
-        --   注册名 "CoronaNormal" 用 execute 求值失败，真实注册名是本地化的 "Corona法线"。
+        --   法线包装器没有英文注册名（英文名 execute 一律落空），真实注册名是本地化的
+        --   "Corona法线"；"Corona法线" 已写进 core/ondevice_registry.json，
+        --   而英文写法进了同文件的 normal_map_class_rejected（证伪清单）。
         -- 中文标识符不能靠 execute 拼字符串求值（MaxScript 只接受 ASCII 标识符），
-        -- 所以先按「类注册表里的字符串名」精确比对 textureMap.classes，
-        -- 再退回 execute 英文名，最后才是语义扫描三级兜底。
-        local cands = #("CoronaNormal", "CoronaNormalMap", "Corona_Normal", "_CoronaNormal", \
-                        "Corona法线", "Corona_法线")
+        -- 所以先按「类注册表里的字符串名」精确比对 textureMap.classes，最后再语义扫描兜底。
+        local cands = #("Corona法线", "Corona_法线")
         for n in cands do (
             for c in textureMap.classes where ((c as string) == n) do (
                 local ok = false
@@ -133,7 +133,7 @@ CORONA_FNS = r"""    -- ---------------- Corona 类名解析（候选链，全�
         undefined
     )
 
-    -- 法线(+可选凹凸) -> CoronaNormal -> mtl.texmapBump
+    -- 法线(+可选凹凸) -> Corona法线 -> mtl.texmapBump
     -- 2026-11-19 真机（Corona 12 + Max 2024 中文版）getPropNames 实证，Corona法线 节点仅 10 项：
     --   multiplier(强度) / normalMap(主输入槽) / addGamma / flipred / flipgreen / swapRedGreen /
     --   gammaWarning / additionalBump(附加凹凸输入) / additionalBumpOn / additionalBumpStrength
@@ -141,7 +141,7 @@ CORONA_FNS = r"""    -- ---------------- Corona 类名解析（候选链，全�
     -- （四个同义关键词不可能同时出现在一个属性名里），必须走 mfFindTexSlotAny 的 OR 语义。
     fn mfAttachNormalBump mtl nf bf nstr bstr = (
         local combo = undefined
-        local comboClass = mfCoronaNormalClass()
+        local comboClass = mfNormalWrapClass()
         if comboClass != undefined do (
             try ( combo = comboClass() ) catch ( combo = undefined )
         )
@@ -232,14 +232,14 @@ CORONA_FNS = r"""    -- ---------------- Corona 类名解析（候选链，全�
                     try ( mfTexmapOn mtl slot ) catch ( 0 )
                     mf_OK += 1
                     local tag = "法线+凹凸叠加"
-                    if bf == undefined do tag = "仅法线(CoronaNormal 包装)"
+                    if bf == undefined do tag = "仅法线(Corona法线 包装)"
                     local bsTxt = okB as string
                     if bf == undefined do bsTxt = "留空"
                     mfLog ("  [OK] " + tag + "已挂载 (normal=" + (okN as string) + " / bump=" + bsTxt + ")")
                     true
                 ) catch (
                     mf_FAIL += 1
-                    mfLog "  [FAIL] CoronaNormal 挂载失败"
+                    mfLog "  [FAIL] Corona法线 挂载失败"
                     false
                 )
             ) else (
@@ -297,7 +297,8 @@ CORONA_CREATE = r"""    -- ---------------- 1. 创建材质（Corona 物理材�
         mfLog ("[OK] " + mfKind + " 创建成功")
     ) else (
         mfLog "**** [WARN] Corona 材质不可用：Corona 未安装 / 未加载 / 未授权 ****"
-        mfLog "****          已自动降级为 PhysicalMaterial，参数会尽量映射，效果与 Corona 不等价 ****"
+        mfLog "****          已降级为 PhysicalMaterial 裸材质：不写入任何参数/贴图（后续每个 [SKIP] 都源于此），只得到一个同名空材质球 ****"
+        mfLog "****          本产物与 Corona 材质不等价，也不会做任何还原补偿；需要正确效果请装好 Corona 后重新导出 ****"
         try ( mtl = PhysicalMaterial() ) catch ( mtl = undefined )
         if mtl == undefined do (
             try ( mtl = StandardMaterial() ) catch ( mtl = undefined )

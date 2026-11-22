@@ -14,11 +14,24 @@
 
 from __future__ import annotations
 
-__version__ = "0.11.1"
+__version__ = "0.11.2"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
+# 别名：scripts/docs_sync.py 用 getattr(V, "VERSION", "") 取版本号回写文档。
+# 这里必须有同名常量，否则取到空串，文档里的版本号会被写成「当前 」（静默清空而非报错）。
+VERSION = __version__
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.11.2": [
+        "【高·导出后自检查的是内存不是磁盘】自检此前校验内存里的 draft 字符串，磁盘上的 .ms 与 draft 不一致时依旧判 ok=True，等于用户真正拿到的那份文件从未被检查过。改为只认磁盘：core/export_guard.check_export_file() 读盘并严格解码，文件不存在 / 编码无法识别 / 内容为空三种情况一律 ok=False；core/exporters/ms_exporter.export_with_meta() 回传真实落盘结果（path / encoding / bytes / sha256 / chars），export() 退化为薄封装，不再存在「按内存判断成功」的口径",
+        "【高·中文脚本编码乱码】脚本按 GBK 落盘（3ds Max 中文版 fileIn 需要），旧自检用 utf-8 读，中文脚本要么解码异常要么读出错字。export_guard._detect_encoding() 改为 utf-8 严格 → gbk 严格两级探测，两级都解不开即报「编码无法识别」；app.py 三处导出改调 check_export_file() 并把 script_encoding 回给前端，用户能直接看到这次落盘到底是什么编码。scripts/export_guard_check.py 新增 part_selfcheck_disk 反例：磁盘上放坏文件，自检必须判 FAIL",
+        "【中·降级文案不实】逐级降级到 PhysicalMaterial 时，脚本实际上一个参数、一张贴图都不写（后续全是 [SKIP]），旧文案却写「参数会尽量映射」，把失败描述成近似。tpl_vray.py / tpl_corona.py 两处降级分支改为如实文案「裸材质 / 不做任何还原补偿」，SKILL.md 新增「降级是降级，不是近似」一段，说明落到这一步只会得到一个同名空材质球（材质名带 _降级_ 前缀），不是近似效果",
+        "【中·文档数字漂移】SKILL.md / README 的参数项数、分组数、evals 条数、检查项数、断言数、版本号全靠手抄，已出现「文档写 61 项、代码实际 62 项」这类漂移。新增 scripts/docs_sync.py：所有数字由 core/params.py、evals/evals.json、core/version.py、scripts/run_all_checks.py 的 CHECKS 现场计算后按「定位 + 重写」写回文档，分组表与类名对照表放进 AUTO 标记块整块生成；--check 逐字比对并在不一致时打印首个差异行号，--write 落盘后立刻复核幂等",
+        "【中·文档类名与真机证伪冲突】文档写 CoronaNormal / CoronaDisplacementMod，而真机注册表已判定这两个名字在本机不存在（normal_map_class_rejected / displacement_modifier_rejected）。core/compat.py 清空这两项的 en 候选；tpl_corona.py 内部函数改名为 mfNormalWrapClass，不再用与已证伪类名同形的名字误导读者，候选链只保留真机确认的中文名；scripts/compat_check.py 新增 E 项「证伪名零残留」，对全仓 Markdown 扫描注册表里的已证伪名称，命中即 FAIL",
+        "【版本号 SSOT 自身有缺口】docs_sync.py 用 getattr(version, \"VERSION\", \"\") 取版本，而 version.py 只定义了 __version__，取到空串会把文档版本号写成「当前 」（静默清空而非报错）。已补 VERSION 别名；同时把 SKILL.md 的版本说明改成受管格式——原写法用反引号包裹，正则匹配不到，等于版本号在文档里从未被同步过",
+        "【门禁扩容】run_all_checks 由 12 项扩到 14 项：新增 docs_sync（文档与代码一致）与 docs_sync_neg（反例自测，含「行内数字改错」「AUTO 块被手改」「证伪名写回文档」三例，任一不被判 FAIL 即整体非零退出）；package_skill.py 新增打包前文档门禁，不一致或有证伪名残留时中止打包、dist 保持原样，且该门禁不受 --skip-verify 绕过",
+        "实测：run_all_checks 14 项全 PASS；p_series_audit 正例 8/8、--selftest 反例 6/6；MAXScript 仅静态体检，未在 3ds Max 中真机编译，本机 Max 未启动",
+    ],
     "0.11.1": [
         "【P4·真机结案】色散与法线凹凸叠加不再是「只到机制」：V-Ray 侧渲出 dispersion 与 normal_bump，Corona 侧渲出 normal_bump，全部人工目视 + 像素量化。凹凸可信度做了开关对照——ON 与 OFF 平均绝对差 27.41、76% 像素差>10、细节梯度 2.82 vs 2.01，证明确实是凹凸贴图在起作用，而不是 64 段球体的多边形轮廓假象",
         "【真机缺陷·visual_probe 语法错】模板第 153 行 `StandardMaterial name:\"__MF_SENTINEL__` 缺闭合引号，真机 fileIn 直接报「位于 bad，需要 <因子>」，此前从未真机跑过所以没暴露",

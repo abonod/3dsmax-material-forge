@@ -54,9 +54,9 @@ Python 侧只做三件事：图像推导、参数组织、文本脚本生成。�
 | 粗糙 | `reflection_glossiness` | `baseRoughness` | 光泽与粗糙方向相反，翻译时取 1−x |
 | 色散 | 数值 + `refraction_dispersion_on` | `refractDispersion` | Corona 无使能开关 |
 | 薄膜 | `thinFilm_on` + 厚度区间 | `baseThinFilmIor` / `baseThinFilmThickness` | 无开关、无区间 |
-| 法线 | `VRay_法线贴图` / `VRayNormalMap` | `CoronaNormal` 包装 | 类名走候选链探测；缺类时法线直挂 bump 并 WARN |
+| 法线 | `VRay_法线贴图` / `VRayNormalMap` | `Corona法线` 包装 | 类名走候选链探测；缺类时法线直挂 bump 并 WARN |
 | AO | `VRay_污垢` | `CoronaAO` | 同上 |
-| 置换 | `VRayDisplacementMod` | `CoronaDisplacementMod` | 按当前渲染器优先 |
+| 置换 | `VRayDisplacementMod` | `Corona置换修改器` | 按当前渲染器优先 |
 
 未搬过去的参数会汇总成一行 `mfDropped` 日志（如非金属预设的 `reflectionColor`），属于语义等价或 Corona 天然如此，不视为失败。
 

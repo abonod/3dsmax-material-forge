@@ -263,6 +263,23 @@ def main() -> int:
     sync_skill_md_version(version)
 
     print("\n[2/4] 体检")
+    # 第3/12条门禁先于一切：文档漂移与证伪类名必须在打包前拦住，
+    # 且不受 --skip-verify 影响（那个开关只豁免 schema/MAXScript 体检）。
+    # 第3/12条门禁：文档里的数字与类名必须与代码事实一致，且不得出现被真机
+    # 证伪的类名。这道检查必须在"打包"之前，否则会把漂移文档打进包发出去。
+    # 用幂等 --check 模式（非 --write），确保打包不会顺手改文档、掩盖漂移。
+    doc = subprocess.run(
+        [sys.executable, str(SKILL_ROOT / "scripts" / "docs_sync.py")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if doc.returncode != 0:
+        print("  [FAIL] 文档与代码事实不一致（漂移或证伪类名残留）：")
+        for line in (doc.stdout or "").splitlines():
+            if line.startswith("[FAIL]"):
+                print("         " + line)
+        print("\n文档漂移门禁未通过，中止打包（先跑 python scripts/docs_sync.py --write）")
+        return 1
+    print("  [PASS] 文档数字/类名与代码一致，证伪类名零残留")
     if args.skip_verify:
         print("  [skip] 按 --skip-verify 跳过体检")
         info = {"params": None, "presets": None}
@@ -278,6 +295,7 @@ def main() -> int:
             print("\nMAXScript 体检未通过，中止打包")
             return 1
         info = {"params": sc["params"], "presets": sc["presets"]}
+
 
     print("\n[3/4] 打包")
     missing_ev = verify_evidence_chain()

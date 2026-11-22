@@ -595,8 +595,9 @@ TAIL = r"""    -- ---------------- 4. 创建材质球对象 ----------------
         ) else (
             for o in selection do (
                 -- 置换修改器候选链（2026-11-19 真机 Modifier.classes 枚举实证）：
-                --   Corona 真实注册名是本地化的「Corona置换修改器」，英文 CoronaDisplacementMod
-                --   在本机（Corona 12 + Max 2024 中文版）execute 求值失败；中文标识符又不能拼进
+                --   Corona 真实注册名是本地化的「Corona置换修改器」，英文名已证伪（registry 的
+                --   displacement_modifier_rejected 字段），在本机（Corona 12 + Max 2024 中文版）
+                --   execute 英文名求值必然失败；中文标识符又不能拼进
                 --   execute，所以必须退回类注册表字符串匹配后再实例化。
                 --   V-Ray 仍是 VRayDisplacementMod，execute 可直接求值（真机 addModifier 通过）。
                 local dm = undefined
