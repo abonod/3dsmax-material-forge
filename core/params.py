@@ -1099,6 +1099,9 @@ _CORONA_DROPPED = (
 )
 
 # 语义等价或影响可忽略的差异：Corona 端不需要替身，也不必写进告警刷屏
+# 例外：translucency / refraction_ior / refraction_glossiness / thinFilm_on 这四项
+# 会被本集合压掉，但它们有真实视觉后果，由 corona_loss_notes() 在「用户真用到」时
+# 单独点名（0.11.3-hotfix）。此处保留是为了避免步骤 6 重复报一遍。
 _CORONA_SILENT = {
     "brdf_useRoughness",     # Corona 直接用 roughness，没有这个开关
     "doubleSided", "option_doubleSided",   # Corona 无单/双面限制
@@ -1269,10 +1272,101 @@ def resolve_corona(values: dict) -> dict:
         if k == "fog_multiplier" and not v:
             continue
         dropped.append(_CORONA_DROP_LABELS.get(k, k))
+
+    # ---- 7. 语义损失点名：_CORONA_SILENT 为了不刷屏压掉的项里，有实际视觉后果的
+    # 单独补一条人话说明。只对「用户真用了这个能力」的场景触发，详见 corona_loss_notes。
+    try:
+        for _note in corona_loss_notes(values, sem):
+            if _note not in dropped:
+                dropped.append(_note)
+    except Exception:
+        pass
+
     if dropped:
         out["__dropped__"] = dropped
     out["__renderer__"] = "corona"
     return out
+
+
+def corona_loss_notes(values: dict, sem: dict | None = None) -> list:
+    """Corona 侧「会真的看不见效果」的语义损失，逐条给出人话说明。
+
+    为什么不直接全塞进 _CORONA_SILENT：
+        _CORONA_SILENT 的口径是「语义等价或影响可忽略，不必刷屏」。但下面几项
+        不属于可忽略——用户勾了半透明、调了折射率，Corona 端一点效果都没有，
+        界面上却显示导出成功。静默吞掉等于让用户以为生效了，这是 0.11.2 修掉的
+        「谎称近似」换了个位置复发。
+
+    判定都带前置条件，只对「用户真的用了这个能力」的场景告警，不制造噪声。
+
+    返回：中文说明列表，可直接拼进 __dropped__ 与预检报告。
+    """
+    try:
+        sem = resolve_vray(values) if sem is None else sem
+    except Exception:
+        return []
+
+    notes = []
+
+    # ---- 1. 半透明：CoronaPhysicalMtl 无 translucency 厚度通道，靠 SSS 近似 ----
+    # 真机实测：sss_on 打开时 sssAmount / sssRadius 已由 _CORONA_PASSTHROUGH 写进材质，
+    # 所以「完全不生效」是错的说法——透光会出现，只是从「薄壁透射」变成「体积散射」。
+    # 告警只讲清差异，不谎称失效（0.11.3 修正：首版文案说成完全无效，过头了）。
+    tr = sem.get("translucency")
+    try:
+        tr_on = tr is not None and float(tr) > 0.0
+    except (TypeError, ValueError):
+        tr_on = bool(tr)
+    if tr_on:
+        try:
+            _amt = float(sem.get("sssAmount") or 0.0)
+            _rad = float(sem.get("sssRadius") or 0.0)
+            notes.append(
+                "半透明：Corona 无 translucency 厚度通道，改用 SSS 近似"
+                "（sssAmount=%.2f / sssRadius=%.2f）；薄壁透光的观感与 V-Ray 会有差别"
+                % (_amt, _rad))
+        except (TypeError, ValueError):
+            notes.append(
+                "半透明：Corona 无 translucency 厚度通道，改用 SSS 近似；"
+                "薄壁透光的观感与 V-Ray 会有差别")
+
+    # ---- 2. 薄膜：物理材质无薄膜层（已按官方 coronaConverter.ms 核对）----
+    if sem.get("thinFilm_on") is True:
+        notes.append(
+            "薄膜(thinFilm)：Corona 物理材质没有薄膜层，"
+            "肥皂泡/阳极氧化的干涉色不会出现")
+
+    # ---- 3. 单一 IOR：Corona 只有一套 ior，反射与折射无法分开设 ----
+    has_refr = bool(values.get("transparency_on", False))
+    rc = sem.get("refractionColor")
+    if not has_refr and isinstance(rc, (tuple, list)) and rc:
+        try:
+            has_refr = float(max(rc)) > 0.001
+        except (TypeError, ValueError):
+            has_refr = False
+    if has_refr:
+        try:
+            brdf_ior = float(sem.get("brdf_ior", 1.6) or 1.6)
+            refr_ior = float(sem.get("refraction_ior", 1.5) or 1.5)
+        except (TypeError, ValueError):
+            brdf_ior = refr_ior = 0.0
+        if abs(brdf_ior - refr_ior) > 0.1:
+            notes.append(
+                "折射率：Corona 只有一个 IOR，已按反射 IOR %.2f 写入，"
+                "你设的折射 IOR %.2f 不会单独生效" % (brdf_ior, refr_ior))
+
+        # ---- 4. 共用粗糙度：Corona 的 roughness 同时管反射与折射 ----
+        gl = sem.get("reflection_glossiness")
+        try:
+            gl_v = float(gl) if gl is not None else 1.0
+        except (TypeError, ValueError):
+            gl_v = 1.0
+        if gl_v < 0.85:
+            notes.append(
+                "磨砂：Corona 反射与折射共用一套粗糙度，折射也会一起变哑；"
+                "V-Ray 侧折射始终是清透的，两端观感会不同")
+
+    return notes
 
 
 def resolve(values: dict, renderer: str = "vray") -> dict:

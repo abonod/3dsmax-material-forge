@@ -13,8 +13,8 @@
 | --- | --- |
 | 参数总数 | 62 |
 | 分组数 | 6 |
-| [OK] | 49 |
-| [WARN] | 7 |
+| [OK] | 47 |
+| [WARN] | 9 |
 | [LOSS] | 5 |
 | [NONE] | 1 |
 
@@ -70,7 +70,7 @@
 | `reflection_glossiness` 反射光泽度 | range | reflection_glossiness | roughness | [OK] | — |
 | `coat_roughness` 清漆粗糙度 | range | coat_glossiness | coat_amount, coat_ior, coat_roughness | [OK] | — |
 | `sheen_tier` 涂层光泽分层 | enum | — | roughness | [OK] | — |
-| `refraction_glossiness` 折射光泽度 | range | refraction_glossiness | refraction_amount | [OK] | — |
+| `refraction_glossiness` 折射光泽度 | range | refraction_glossiness | refraction_amount | [WARN] | Corona 只有一套 roughness，折射光泽无处单独生效；调反射光泽会让折射一起变哑，导出时显式告警 |
 | `emis_color` 自发光颜色 | color | selfIllumination | selfIllumination, selfIllumination_multiplier | [OK] | — |
 | `emis_strength` 自发光强度 | range | selfIllumination_multiplier | selfIllumination, selfIllumination_multiplier | [OK] | — |
 | `opacity_on` 透明度贴图 | bool | texmap_opacity | texmap_opacity | [OK] | — |
@@ -92,7 +92,7 @@
 | `fog_on` 雾化（体积感） | bool | fogColor, fog_multiplier | 无落点 | [LOSS] | Corona 无对应能力，已归入丢弃清单：fogColor, fog_multiplier |
 | `fog_color` 雾化颜色 | color | fogColor | 无落点 | [LOSS] | Corona 无对应能力，已归入丢弃清单：fogColor, fog_multiplier |
 | `fog_amount` 雾化浓度 | range | fog_multiplier | 无落点 | [LOSS] | Corona 无对应能力，已归入丢弃清单：fogColor, fog_multiplier |
-| `sss_on` 次表面散射 SSS | bool | translucency | sssAmount, sssRadius | [OK] | — |
+| `sss_on` 次表面散射 SSS | bool | translucency | sssAmount, sssRadius | [WARN] | Corona 无 translucency 厚度通道，改用 SSS 近似（sssAmount/sssRadius 已写入），薄壁透光观感有差 |
 | `sss_amount` SSS 强度 | range | sssAmount | sssAmount, sssRadius | [OK] | — |
 | `sss_radius` SSS 半径 | range | sssRadius | sssAmount, sssRadius | [OK] | — |
 

@@ -25,6 +25,26 @@ from . import proc_texture
 MAX_SIDE = 2048
 
 
+def _size_plan(ow: int, oh: int) -> dict:
+    """原图超过 MAX_SIDE 时，算出真实落盘尺寸并给出说明
+
+    上限刻意不放开：单边 2048 对本机 V-Ray / Corona 的墙面近景够用，再大会让
+    PIL 派生链（法线 / AO / 程序化场）耗时翻倍、.ms 打包体积暴涨。
+    但静默缩放不可接受——用户传 6000px 原图，会默认导出也是 6000px。
+    所以这里如实算出目标尺寸，由界面显式提示，不做「悄悄缩了不说」。
+    """
+    if max(ow, oh) <= MAX_SIDE:
+        return {"downscaled": False, "original": [ow, oh], "target": [ow, oh],
+                "max_side": MAX_SIDE}
+    scale = MAX_SIDE / max(ow, oh)
+    tw, th = max(1, int(ow * scale)), max(1, int(oh * scale))
+    return {"downscaled": True, "original": [ow, oh], "target": [tw, th],
+            "max_side": MAX_SIDE,
+            "note": "原图 %d×%d 超过单边 %dpx 上限，已等比缩到 %d×%d 再派生通道；"
+                    "近景细节以 %dpx 为准，需要更高精度请先裁切原图、只留要用的区域"
+                    % (ow, oh, MAX_SIDE, tw, th, MAX_SIDE)}
+
+
 # ---------------------------- 基础工具 ----------------------------
 
 def _load_rgb(path: str) -> Image.Image:
@@ -336,10 +356,20 @@ def build_texture_set(src_path: Optional[str], out_dir: str,
             progress(msg, p)
 
     solid = src_path is None or not str(src_path).strip()
+    resize_info = {}
 
     if solid:
         tick("生成纯色底", 0.1)
-        size = int(np.clip(int(options.get("size", 1024) or 1024), 256, MAX_SIDE))
+        size_req = int(options.get("size", 1024) or 1024)
+        size = int(np.clip(size_req, 256, MAX_SIDE))
+        if size != size_req:
+            # 纯色尺寸被夹同样要说，否则用户填 4096 拿到 2048 会以为是 bug
+            resize_info = {
+                "downscaled": True, "original": [size_req, size_req],
+                "target": [size, size], "max_side": MAX_SIDE,
+                "note": "纯色尺寸 %dpx 超出单边 %dpx 上限，已按 %dpx 生成"
+                        % (size_req, MAX_SIDE, size),
+            }
         base_rgb = np.array(hex_to_rgb(str(options.get("base_color") or "#ffffff")),
                             dtype=np.float32)
         arr = np.ones((size, size, 3), dtype=np.float32) * base_rgb
@@ -351,6 +381,8 @@ def build_texture_set(src_path: Optional[str], out_dir: str,
         opacity = np.ones((size, size), dtype=np.float32)
     else:
         tick("读取图片", 0.05)
+        with Image.open(src_path) as _probe:
+            resize_info = _size_plan(*_probe.size)
         im = _load_rgb(src_path)
         arr = _to_arr(im)
 
@@ -481,6 +513,7 @@ def build_texture_set(src_path: Optional[str], out_dir: str,
 
     paths["_proc"] = proc_info or {}
     paths["_mask"] = mask_info or {}
+    paths["_resize"] = resize_info or {}
     paths["_solid"] = bool(solid)
     tick("完成", 1.0)
     return paths

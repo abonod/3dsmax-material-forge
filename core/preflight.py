@@ -478,6 +478,28 @@ def check_value_domain(values: dict) -> list[dict]:
 # ------------------------------------------------------------------
 # 综合预检
 # ------------------------------------------------------------------
+def check_renderer_semantics(values: dict, renderer: str = "vray") -> list[dict]:
+    """跨渲染器语义损失：Corona 端没有对应能力时，必须在导出前说清楚。
+
+    为什么单列这一项：
+        这些参数在 Corona 材质里没有落点，导出流程照样返回成功，用户要到 Max
+        里看渲染才发现「没效果」——属于静默假成功，比报错更难查。0.11.2 修的是
+        「谎称近似」，这里是同一类问题的另一条路径，用预检把它堵在导出前。
+    """
+    if str(renderer).lower() != "corona":
+        return []
+    try:
+        from . import params as _params
+        notes = _params.corona_loss_notes(dict(values or {}))
+    except Exception as e:
+        return [{"level": WARN, "title": "Corona 语义",
+                 "detail": f"语义损失检查未执行: {e}"}]
+    if not notes:
+        return [{"level": OK, "title": "Corona 语义",
+                 "detail": "按当前参数，Corona 端无已知语义损失项"}]
+    return [{"level": WARN, "title": "Corona 语义损失", "detail": n} for n in notes]
+
+
 def run(
     material_name: str,
     script: str,
@@ -563,6 +585,9 @@ def run(
 
     # ---- 3c. 参数取值域 ----
     items.extend(check_value_domain(values))
+
+    # ---- 3d. 跨渲染器语义损失（Corona 端无落点的项，导出前就说清楚）----
+    items.extend(check_renderer_semantics(values, renderer))
 
     # ---- 4. 参数面 ----
     enabled_bools = [k for k, v in values.items() if v is True]

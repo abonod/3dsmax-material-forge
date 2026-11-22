@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.11.3"
+__version__ = "0.11.4"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
 # 别名：scripts/docs_sync.py 用 getattr(V, "VERSION", "") 取版本号回写文档。
 # 这里必须有同名常量，否则取到空串，文档里的版本号会被写成「当前 」（静默清空而非报错）。
@@ -22,6 +22,18 @@ VERSION = __version__
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.11.4": [
+        "【新功能·一键送进 Max】新增 core/max_bridge.py 与 scripts/mf_max_listener.ms：导出后不再靠用户手动 Scripting → Run Script 找文件，界面点「送进 Max」即可让本机 3ds Max 直接执行刚导出的 .ms。机制是磁盘 inbox 协议——Python 侧写清单（token + sha256 + 产物路径），Max 侧监听器 400ms 轮询、逐项校验 token 与哈希后 fileIn，再写回执与心跳；listener 未启动、心跳过期、哈希不符、越权路径一律明确失败而不是假装成功。安全边界：只接受 OUTPUT 目录下的 .ms，路径白名单之外的请求直接拒绝；剪贴板 fallback 作为 MCP 不可用时的降级通路。真机实测：Python 与 Max 两侧 sha256 一致（d55bedc…ad4a），回执 ok=True「已在 Max 里执行：自检_磁盘.ms」，Max 内 sceneMaterials 由 2 增至 3 且新增名为「自检_磁盘/VRayMtl」的材质，端到端链路打通",
+        "【真机缺陷·listener 热重载竞态】同一 Max 会话里再次 fileIn listener 时，旧 timer 仍在 Tick，撞上新脚本的函数重定义，报「类型错误: 调用需要函数或类」，监听器直接死掉。改为脚本头先停旧 timer（mfMBStop）再注册，重复装载幂等",
+        "【真机缺陷·回执是非法 JSON】回执里写 processID，MAXScript 并无此全局量，落盘成 \"pid\":undefined，Python 侧 json.loads 直接抛错，表现为「Max 明明执行了、界面却报失败」。改取 dotNet 进程对象的 Id",
+        "【真机缺陷·哈希恒不符】mfMBSha256 原用 b.ToString(\"x2\") 拼十六进制，byte[] 在 foreach 中会被自动解包成 Integer，对 Integer 调 ToString 抛错又被同一个 catch 吞掉、返回空串——校验端看到的永远是「哈希不符」，而这正是最容易误判成「文件被改」的假象。改用 BitConverter.ToString(b).Replace(\"-\",\"\").ToLower()，并保留失败即空串的可观测路径",
+        "【真机缺陷·BOM 导致解析失败】Max 侧 File.WriteAllText 写的是带 BOM 的 UTF-8，Python 用 utf-8 读首字符残留 \\ufeff，json 解析报 Expecting value。读取统一改 utf-8-sig，写入侧不动（Max 中文版落盘习惯不由我们改）",
+        "【Corona 语义损失点名·先告警】refraction_ior / refraction_glossiness / translucency / thinFilm_on 此前落在 _CORONA_SILENT 里被静默丢弃：用户勾了半透明、调了薄膜，导出成功但 Corona 端毫无对应属性，属「谎称成功」的复发点。新增 core/params.corona_loss_notes()，只对用户真的用到的能力逐条给出人话说明（哪一项、原值多少、为什么不生效），并接进 __dropped__ 与预检报告；V-Ray 侧不出现任何多余告警。gen_param_gap.py 同步把 sss_on 标 [WARN]（SSS 近似）、refraction_glossiness 标 [WARN]（与 roughness 共用）",
+        "【Corona 语义损失·再补等价映射】半透明不是彻底无效，而是被换成了体积散射：真机核验 sss_on 打开时 sssAmount / sssRadius 已由 _CORONA_PASSTHROUGH 写进 CoronaPhysicalMtl，透光会出现，只是从「薄壁透射」变成「体积散射」。告警文案据此从「完全失效」改成「改用 SSS 近似（sssAmount=x / sssRadius=y）；薄壁透光观感与 V-Ray 有差别」，既不说没做，也不谎称等价",
+        "【贴图精度不放开但不再静默缩图】贴图单边上限维持 2048px（再大会让法线/AO/程序化场的派生耗时翻倍、.ms 打包体积暴涨），但静默缩放同样不可接受：用户传 6000px 原图，会默认导出也是 6000px。新增 texture_engine._size_plan()，算出真实落盘尺寸并随接口以 resize 字段回传，界面在贴图集上方显示「原图 3000×2000 超过单边 2048px 上限，已等比缩到 2048×1365 再派生通道；近景细节以 2048px 为准，需要更高精度请先裁切原图」；纯色模式请求 4096px 被夹到 2048px 时同样给出提示，不再让人以为填多少就出多少",
+        "【gate·max_bridge 自测 15 例】scripts/selftest_max_bridge.py 覆盖 token 校验、心跳判活、剪贴板降级、inbox 写入与消费、哈希不符、超时、越权路径拒绝等 15 个用例，已注册进 run_all_checks（门禁 14 → 15 项），协议改动跑一次即知有没有把校验削掉",
+        "实测：一键送进 Max 在 Max 2024 真机端到端跑通（回执 ok / 哈希双侧一致 / sceneMaterials 2→3）；selftest_max_bridge 15 例全 PASS；run_all_checks 15 项全 PASS（含 docs_sync 与 max_bridge）",
+    ],
     "0.11.3": [
         "【真机缺陷·Corona 色散开关属性名不存在】使能开关写的是 dispersionEnable，本机 Corona 物理材质 148 个属性里没有这个名字（getPropNames 全量枚举），色散强度写进去也不亮，用户只会看到「勾了色散没反应」。真名是 refractDispersionEnable；CORONA_PROP_ON_SWITCH 改为双候元组（refractDispersionEnable / dispersionEnable）后按序命中，ondevice_registry.json 的 dispersion_on_prop 改为真名并把旧名列入 rejected，_SPECS 的「色散使能属性」判据同步收紧（旧名一出现即报）",
         "【真机缺陷·V-Ray AO 把漫反射位图弄丢】旧实现把 VRayDirt 当普通贴图挂在 texmap_diffuse 上，注释里写 VRayDirt.unoccludedColor 接管原图。真机核验三条全错：①VRayDirt / VRay_Dirt / VRayBitmap 三个英文类名在本机均 UndefinedClass，污垢纹理的类名只有本地化「VRay_污垢」；②该类 44 个属性中根本没有 texmap 槽，位图唯一入口是 texmap_unoccluded_color（配 texmap_unoccluded_color_on）；③颜色属性是下划线命名 occluded_color / unoccluded_color，驼峰写法不存在。修法：位图改写进 texmap_unoccluded_color 并打开 _on，颜色/位图候选链只保留真机实证名，代码注释记入取证日期与属性总数",

@@ -202,6 +202,14 @@ def build_rows() -> list[dict]:
             status, note = "[WARN]", "Corona 走 sheen_amount，强度档位决定数量，无独立开关"
         if p.id in ("thin_film_on", "thin_film_nm"):
             status, note = "[LOSS]", "CoronaPhysicalMtl 无任何 thinFilm* 属性，属渲染器缺口"
+        if p.id == "refraction_glossiness":
+            # 表里曾把它算成 [OK]（改它会让 corona 输出的 __dropped__ 变化，被误当成落点）。
+            # 实际上 Corona 只有一套 roughness，折射侧无处单独落。
+            status, note = "[WARN]", ("Corona 只有一套 roughness，折射光泽无处单独生效；"
+                                      "调反射光泽会让折射一起变哑，导出时显式告警")
+        if p.id == "sss_on":
+            status, note = "[WARN]", ("Corona 无 translucency 厚度通道，改用 SSS 近似"
+                                      "（sssAmount/sssRadius 已写入），薄壁透光观感有差")
         if p.id == "reflect_strength":
             status, note = "[WARN]", "Corona 侧反射强度真实属性名未真机确认，当前不下发（待 probe 取证）"
         if p.id in _OVERRIDES:

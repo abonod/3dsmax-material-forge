@@ -101,6 +101,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │   ├── preflight.py             导出前自检：环境探测 + 模板结构/取值域校验 + 综合报告
 │   ├── export_guard.py          导出后自检：贴图存在性 + .ms 引用断链 + 通道完整性
 │   ├── texture_engine.py        PBR 五通道推导（PIL + numpy，实测写出 albedo/normal/height/roughness/ao[/opacity]）
+│   ├── max_bridge.py            一键送进 Max：inbox 目录协议 + token/哈希校验 + 心跳判活 + 剪贴板降级
 │   ├── ai_enhance.py            BaseProvider 可插拔在线增强，默认回落本地
 │   └── exporters/
 │       ├── ms_exporter.py       PROP_TARGETS / CORONA_PROP_TARGETS / TEX_SLOTS / 组装入口（按 renderer 切换）
@@ -114,7 +115,9 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，20 项断言）
 │   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 62 项与档位一致性
 │   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
-│   ├── run_all_checks.py        统一检查入口（14 项串跑，--fast 跳过 Edge 截图）
+│   ├── run_all_checks.py        统一检查入口（15 项串跑，--fast 跳过 Edge 截图）
+│   ├── mf_max_listener.ms       Max 端监听器：轮询 inbox → 校验 token/哈希 → fileIn → 写回执与心跳
+│   ├── selftest_max_bridge.py   送进 Max 协议自测 15 例（token/心跳/哈希不符/超时/越权拒绝）
 │   ├── capture_presets.py       真机 GUI 出图基线（逐预设截预览球 → reports/baseline/）
 │   ├── package_skill.py         一键体检 + 打包 + 版本号同步 + dist 瘦身 → ../dist/*.skill
 │   └── reports/                 上述脚本的 JSON 报告与截图 / baseline 基线图
@@ -424,7 +427,7 @@ output/<job_id>/
 
 ## 版本与打包
 
-版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.3`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
+版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.4`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
 
 ```
 python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScript 静态体检）→ 打包 → 写清单

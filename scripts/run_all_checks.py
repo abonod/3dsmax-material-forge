@@ -47,6 +47,9 @@ CHECKS = [
     ("visual_check",  "目视取证结构校验",      ["scripts/visual_gen_check.py"],   False),
     ("p_series",      "P0-P7 落地审计",        ["scripts/p_series_audit.py"],     False),
     ("p_series_neg",  "P0-P7 审计反例自测",     ["scripts/p_series_audit.py", "--selftest"], False),
+    # 一键送进 Max 的 inbox 协议自测：跨进程 + 会让 Max 执行脚本，安全边界
+    # （路径白名单/哈希/token/超时）必须每次交付前被验一遍，不能只靠真机跑通一次。
+    ("max_bridge",    "送进 Max 桥协议自测",    ["scripts/selftest_max_bridge.py"], False),
     ("ui",            "主界面结构",            ["scripts/ui_check.py"],          True),
     ("ui_solid",      "纯色模式像素",          ["scripts/ui_solid_check.py"],    True),
 ]

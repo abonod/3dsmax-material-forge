@@ -25,7 +25,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from core import ai_enhance, export_guard, params, preflight, texture_engine
+from core import ai_enhance, export_guard, max_bridge, params, preflight, texture_engine
 from core.exporters import ms_exporter
 from core.version import __version__ as CORE_VERSION
 
@@ -362,6 +362,7 @@ async def _rebuild(job_id, payload: dict, preview: bool = False):
         raise HTTPException(500, f"重建贴图失败: {e}")
 
     mask_info = tex.get("_mask") or {}
+    resize_info = tex.get("_resize") or {}
     tex = _tex_meta(tex)
     urls = _tex_urls(job_id, tex, sub)
     # 染色的 albedo 单独落文件，绝不覆盖 textures/albedo.png：
@@ -386,14 +387,14 @@ async def _rebuild(job_id, payload: dict, preview: bool = False):
         return job_id, {"job_id": job_id, "textures": urls, "tint": tint_info,
                         "solid": bool(job.get("source") is None),
                         "preview": True, "size": size,
-                        "mask": mask_info}
+                        "mask": mask_info, "resize": resize_info}
 
     job["textures_base"] = dict(tex)
     job["values"] = values
     job["textures"] = dict(tex)
     return job_id, {"job_id": job_id, "textures": urls, "tint": tint_info,
                     "solid": bool(job.get("source") is None), "size": size,
-                    "mask": mask_info}
+                    "mask": mask_info, "resize": resize_info}
 
 
 @app.post("/api/solid")
@@ -639,6 +640,33 @@ async def preflight_api(payload: dict):
     return preflight.run(mat_name, draft, dict(job["textures"]), merged_values,
                          preview_only=True, has_source=job.get("source") is not None,
                          renderer=renderer)
+
+
+@app.post("/api/send_to_max")
+def send_to_max(payload: dict):
+    """把导出的 .ms 直接送进已经开着的 3ds Max（一键，不必手动 Run Script）
+
+    路径白名单只认 OUTPUT 下的文件：这个接口会让 Max 执行脚本，不能让它变成
+    「随便给个路径就能执行」的后门。
+    """
+    raw = payload.get("ms_path") or ""
+    if not raw:
+        raise HTTPException(400, "缺少 ms_path")
+    try:
+        result = max_bridge.send(raw, OUTPUT)
+    except ValueError as e:
+        raise HTTPException(403, str(e))
+    return result
+
+
+@app.get("/api/max_status")
+def max_status():
+    """Max 端一键桥是否在线（供 UI 决定按钮文案）"""
+    hb = max_bridge.listener_alive()
+    listener = BASE / "scripts" / "mf_max_listener.ms"
+    return {"listener": hb,
+            "listener_script": str(listener) if listener.exists() else "",
+            "inbox": str(max_bridge.INBOX)}
 
 
 @app.post("/api/open_dir")

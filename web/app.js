@@ -536,6 +536,8 @@ async function rebuildPreview(preview = false) {
     S.previewing = !!preview;               // 标记：当前屏上是快预览，导出前必须补全图
     S.lastMask = data.mask || null;         // 后端算的米制换算，比前端估算准，提示优先用它
     updateMaskHint();
+    S.lastResize = data.resize || null;
+    updateResizeHint();
     renderTexGrid(data.textures);
     loadTextures(data.textures);
     showTint(data.tint);
@@ -829,6 +831,21 @@ function updateMaskHint() {
   el.textContent = txt;
 }
 
+/* 缩图提示：贴图集有单边 2048px 上限，原图更大时如实告知落盘尺寸，
+   不能让用户以为「传多大就导出多大」——静默缩放是本节要消灭的问题 */
+function updateResizeHint() {
+  const el = $("resizeHint");
+  if (!el) return;
+  const r = S.lastResize;
+  if (!r || !r.downscaled) {
+    el.style.display = "none";
+    el.textContent = "";
+    return;
+  }
+  el.style.display = "";
+  el.textContent = r.note || `原图已按单边 ${r.max_side}px 上限缩放`;
+}
+
 const REBUILD_IDS = new Set([
   "base_color", "tint_mode", "tint_strength", "tint_chroma",
   "proc_on", "proc_type", "proc_scale", "proc_amount", "proc_rough",
@@ -1009,6 +1026,8 @@ async function handleUpload(file) {
     S.textures = {};
     S.bakedAlbedo = null;
     S.solidMode = false;
+    S.lastResize = data.resize || null;
+    updateResizeHint();
     renderTexGrid(data.textures);
     loadTextures(data.textures);
     $("btnRedo").disabled = false;
@@ -1072,6 +1091,8 @@ $("btnRedo").addEventListener("click", async () => {
     S.texUrls = data.textures;
     S.textures = {};
     S.bakedAlbedo = null;
+    S.lastResize = data.resize || null;
+    updateResizeHint();
     renderTexGrid(data.textures);
     loadTextures(data.textures);
     toast("贴图已按新强度重算");
@@ -1107,6 +1128,8 @@ $("btnSolid").addEventListener("click", async () => {
     S.texUrls = data.textures;
     S.bakedAlbedo = data.textures?.albedo || null;
     S.textures = {};
+    S.lastResize = data.resize || null;
+    updateResizeHint();
     renderTexGrid(data.textures);
     loadTextures(data.textures);
     $("btnRedo").disabled = false;
@@ -1339,8 +1362,32 @@ function showExport(d) {
     selfcheckHtml(d.selfcheck) +
     reportHtml(d.report) +
     `<button class="btn ghost" onclick="openDir('${d.texture_dir.replace(/\\/g, "\\\\")}')">打开输出目录</button>` +
-    `<button class="btn ghost" onclick="copyPath('${d.ms_path.replace(/\\/g, "\\\\")}')">复制 .ms 路径</button>`;
+    `<button class="btn ghost" onclick="copyPath('${d.ms_path.replace(/\\/g, "\\\\")}')">复制 .ms 路径</button>` +
+    `<button class="btn" onclick="sendToMax('${d.ms_path.replace(/\\/g, "\\\\")}')">送进 Max</button>` +
+    `<div class="tip" id="sendMaxNote"></div>`;
 }
+
+window.sendToMax = async (p) => {
+  const note = $("sendMaxNote");
+  if (note) note.textContent = "正在送进 3ds Max…";
+  try {
+    const r = await api("/api/send_to_max", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ms_path: p }),
+    });
+    if (r.ok) {
+      toast(r.mode === "inbox" ? "已送进 Max" : "命令已复制到剪贴板");
+      if (note) note.textContent = r.msg || "";
+    } else {
+      toast("送进 Max 失败", true);
+      if (note) note.textContent = r.msg || "送进失败";
+    }
+  } catch (e) {
+    toast("送进 Max 失败：" + e.message, true);
+    if (note) note.textContent = "送进失败：" + e.message;
+  }
+};
 
 window.copyPath = async (p) => {
   try {
