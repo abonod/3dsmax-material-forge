@@ -60,7 +60,9 @@ _SPECS = {
         ("法线输入槽", ["normalMap"], ["texmapNormal"], ["mfAttachNormalBump"]),
         ("附加凹凸槽", ["additionalBump"], [], ["mfAttachNormalBump"]),
         ("置换修改器类名", ["Corona置换修改器"], ["CoronaDisplacementMod"], ["DisplacementMod", "置换"]),
-        ("色散使能属性", ["dispersionEnable"], [], ["dispersion"]),
+        # 2026-11-22 真机 getPropNames 全量枚举（148 属性）：使能真名是
+        # refractDispersionEnable，旧口径 dispersionEnable 在本机不存在
+        ("色散使能属性", ["refractDispersionEnable"], ["dispersionEnable"], ["dispersion"]),
         # probeG 2026-11-20 真机回读：Corona 凹凸走 baseBumpTexmap + baseBumpMapAmount，
         # 内层 wrapper 的 multiplier 恒 1.0（强度只归外层，避免平方衰减）
         ("凹凸槽位", ["baseBumpTexmap"], ["texmap_bump"], ["mfAttachNormalBump", "BumpTexmap", "mfAttachTex"]),
@@ -75,6 +77,13 @@ _SPECS = {
         # 内层 wrapper 的 normal_map_multiplier 恒 1.0
         ("凹凸槽位", ["texmap_bump"], ["baseBumpTexmap"], ["mfAttachNormalBump", "BumpTexmap", "mfAttachTex"]),
         ("凹凸强度属性", ["texmap_bump_multiplier"], ["baseBumpMapAmount"], ["bump_multiplier", "BumpMapAmount"]),
+        # 2026-11-22 真机：类名 VRayDirt / VRay_Dirt / VRayBitmap 均 UndefinedClass，
+        # 污垢纹理类名只有本地化 "VRay_污垢"；其 44 个属性里没有 texmap 槽，
+        # 位图唯一入口是 texmap_unoccluded_color（配 _on 开关），颜色按下划线命名。
+        ("AO 污垢类名", ["VRay_污垢"], [], ["mfDirtClass", "污垢", "AO"]),
+        ("AO 位图槽", ["texmap_unoccluded_color"], [], ["texmap_unoccluded_color", "污垢", "AO"]),
+        ("AO 遮挡色属性", ["occluded_color"], [], ["texmap_unoccluded_color", "污垢", "AO"]),
+        ("AO 未遮挡色属性", ["unoccluded_color"], [], ["texmap_unoccluded_color", "污垢", "AO"]),
     ],
 }
 

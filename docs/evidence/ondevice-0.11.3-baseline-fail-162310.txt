@@ -1,0 +1,149 @@
+==============================================================================
+3dsmax-material-forge on-device verification suite  v0.11.3
+started: 20261122-162310
+3ds Max build: 26000   current renderer: Arnold
+temp run dir: C:\Users\ADMINI~1\AppData\Local\Temp\mf_ondevice_20261122-162310
+==============================================================================
+SUITE_CASES=32
+SUITE_EMBED_OK=32
+SUITE_TEX_OK=5 / 5
+SUITE_SCENE_HELD=true
+[01] MF_metal_vray (metal/vray) | FAIL | ok=14 fail=0 bad=0 degraded=0 failLines=0 checked=12 mismatch=0 slot=0 cls=VRayMtl :: material-not-in-medit-slot
+[02] MF_metal_corona (metal/corona) | FAIL | ok=9 fail=5 bad=0 degraded=0 failLines=0 checked=8 mismatch=0 slot=0 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+[03] MF_plastic_vray (plastic/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=2 slot=3 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[04] MF_plastic_corona (plastic/corona) | FAIL | ok=10 fail=6 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=4 cls=_Corona物理材质 :: export-selfcheck-red fail=6 bad=0 failLines=0
+        !! value:baseRoughness want=0.08 got=0.75
+        !! value:clearcoatRoughness want=0.04 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[05] MF_concrete_vray (concrete/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=2 slot=5 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[06] MF_concrete_corona (concrete/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=7 mismatch=3 slot=6 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.85 got=0.75
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[07] MF_wood_vray (wood/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=2 slot=7 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[08] MF_wood_corona (wood/corona) | FAIL | ok=10 fail=6 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=8 cls=_Corona物理材质 :: export-selfcheck-red fail=6 bad=0 failLines=0
+        !! value:baseRoughness want=0.28 got=0.75
+        !! value:clearcoatRoughness want=0.2 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[09] MF_fabric_vray (fabric/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=4 slot=9 cls=VRayMtl :: readback-mismatch x4
+        !! slot-miss:texmap_bump want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_bump want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[10] MF_fabric_corona (fabric/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=9 mismatch=5 slot=10 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.88 got=0.75
+        !! slot-miss:baseBumpTexmap want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:baseBumpTexmap want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[11] MF_leather_vray (leather/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=2 slot=11 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[12] MF_leather_corona (leather/corona) | FAIL | ok=10 fail=6 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=12 cls=_Corona物理材质 :: export-selfcheck-red fail=6 bad=0 failLines=0
+        !! value:baseRoughness want=0.32 got=0.75
+        !! value:clearcoatRoughness want=0.35 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[13] MF_tile_vray (tile/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=2 slot=13 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[14] MF_tile_corona (tile/corona) | FAIL | ok=10 fail=6 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=14 cls=_Corona物理材质 :: export-selfcheck-red fail=6 bad=0 failLines=0
+        !! value:baseRoughness want=0.12 got=0.75
+        !! value:clearcoatRoughness want=0.08 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[15] MF_glass_vray (glass/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=16 mismatch=2 slot=15 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[16] MF_glass_corona (glass/corona) | FAIL | ok=7 fail=9 bad=0 degraded=0 failLines=0 checked=9 mismatch=4 slot=16 cls=_Corona物理材质 :: export-selfcheck-red fail=9 bad=0 failLines=0
+        !! value:baseRoughness want=0.02 got=0.75
+        !! value:refractionAmount want=1.0 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[17] MF_wood_floor_vray (wood_floor/vray) | FAIL | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=2 slot=17 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[18] MF_wood_floor_corona (wood_floor/corona) | FAIL | ok=10 fail=6 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=18 cls=_Corona物理材质 :: export-selfcheck-red fail=6 bad=0 failLines=0
+        !! value:baseRoughness want=0.4 got=0.75
+        !! value:clearcoatRoughness want=0.25 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[19] MF_floor_tile_vray (floor_tile/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=2 slot=19 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[20] MF_floor_tile_corona (floor_tile/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=7 mismatch=3 slot=20 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.2 got=0.75
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[21] MF_marble_vray (marble/vray) | FAIL | ok=18 fail=0 bad=0 degraded=0 failLines=0 checked=16 mismatch=2 slot=21 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[22] MF_marble_corona (marble/corona) | FAIL | ok=10 fail=8 bad=0 degraded=0 failLines=0 checked=10 mismatch=4 slot=22 cls=_Corona物理材质 :: export-selfcheck-red fail=8 bad=0 failLines=0
+        !! value:baseRoughness want=0.08 got=0.75
+        !! value:clearcoatRoughness want=0.04 got=0.0
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[23] MF_wallpaper_vray (wallpaper/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=2 slot=23 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[24] MF_wallpaper_corona (wallpaper/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=7 mismatch=3 slot=24 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.55 got=0.75
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[25] MF_wallcloth_vray (wallcloth/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=4 slot=1 cls=VRayMtl :: readback-mismatch x4
+        !! slot-miss:texmap_bump want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_bump want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[26] MF_wallcloth_corona (wallcloth/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=9 mismatch=5 slot=1 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.7 got=0.75
+        !! slot-miss:baseBumpTexmap want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:baseBumpTexmap want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[27] MF_latex_paint_vray (latex_paint/vray) | FAIL | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=2 slot=1 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[28] MF_latex_paint_corona (latex_paint/corona) | FAIL | ok=8 fail=5 bad=0 degraded=0 failLines=0 checked=7 mismatch=3 slot=1 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! value:baseRoughness want=0.65 got=0.75
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[29] MF_alu_frosted_vray (alu_frosted/vray) | FAIL | ok=14 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=4 slot=1 cls=VRayMtl :: readback-mismatch x4
+        !! slot-miss:texmap_bump want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_bump want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[30] MF_alu_frosted_corona (alu_frosted/corona) | FAIL | ok=9 fail=5 bad=0 degraded=0 failLines=0 checked=10 mismatch=6 slot=1 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! color:baseColor want=#(213, 210, 202) got=(color 89 89 89)
+        !! value:baseRoughness want=0.22 got=0.75
+        !! slot-miss:baseBumpTexmap want=src_normal.png got=#("normal.png", "height.png")
+        !! slot-miss:baseBumpTexmap want=src_height.png got=#("normal.png", "height.png")
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+[31] MF_alu_brushed_vray (alu_brushed/vray) | FAIL | ok=15 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=2 slot=1 cls=VRayMtl :: readback-mismatch x2
+        !! slot-miss:texmap_diffuse want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:texmap_roughness want=src_roughness.png got=#("roughness.png")
+[32] MF_alu_brushed_corona (alu_brushed/corona) | FAIL | ok=10 fail=5 bad=0 degraded=0 failLines=0 checked=9 mismatch=4 slot=1 cls=_Corona物理材质 :: export-selfcheck-red fail=5 bad=0 failLines=0
+        !! color:baseColor want=#(216, 218, 220) got=(color 89 89 89)
+        !! value:baseRoughness want=0.12 got=0.75
+        !! slot-miss:baseTexmap want=src_albedo.png got=#("albedo.png")
+        !! slot-miss:baseRoughnessTexmap want=src_roughness.png got=#("roughness.png")
+==============================================================================
+SUITE_CASES=32
+SUITE_PASS=0
+SUITE_DEGRADED=0
+SUITE_FAIL=32
+SUITE_SKIP=0
+SUITE_SECONDS=27.764
+SUITE_LOG=C:\Users\Administrator\AppData\Roaming\Tencent\Marvis\User\oAN1i2eTBlFqNO1PX28nWZeh4Bv4\workspace\conv_885b8974b74645d4b6e13527782e2296\output\MF_ONDEVICE_LOG_20261122-162310.txt
+SUITE_VERDICT=FAIL
+==============================================================================
+scene snapshot will be restored (fetchMaxFile) after this log is closed

@@ -105,8 +105,11 @@ PROP_ON_SWITCH: dict[str, dict[str, Any]] = {
 # refraction_dispersion_on），所以 Corona 用空表。
 # 真机核对：CoronaPhysicalMtl 的 dispersion 是「强度 + dispersionEnable 开关」两段式，
 # 只写 dispersion 不打开开关等于没写（默认 dispersionEnable=false）。
-CORONA_PROP_ON_SWITCH: dict[str, dict[str, Any]] = {
-    "dispersion": {"dispersionEnable": True},
+CORONA_PROP_ON_SWITCH: dict[str, dict[Any, Any]] = {
+    # 2026-11-22 真机修正：本机 Corona 物理材质 getPropNames 实证使能真名是
+    # refractDispersionEnable（旧版/文档口径写作 dispersionEnable）。保留双候选，
+    # 由 mfAssign 按属性存在性取第一个，避免往不存在的名字上写而静默失效。
+    "dispersion": {("refractDispersionEnable", "dispersionEnable"): True},
 }
 
 # Corona 的薄膜没有 min/max 随机区间，无需成对写入
@@ -280,7 +283,11 @@ _AO_BLOCK_CORONA = r'''    (
             mfSetOn dirt #("colorUnoccluded", "unoccludedColor") (color 255 255 255)
             mfSetOn dirt #("colorOccluded", "occludedColor") (color 30 30 30)
             if baseBm != undefined do (
-                mfSetOn dirt #("texmapUnoccluded", "unoccludedTexmap", "unoccluded") baseBm
+                -- 2026-11-22 真机 getPropNames（CoronaAO，18 属性）实证：未遮挡位图槽
+                -- texmapUnoccluded 必须同时打开 texmapUnoccludedOn，否则位图不参与
+                -- 求值，AO 只剩纯色，漫反射贴图等于丢失。
+                mfSetOn dirt #("texmapUnoccluded") baseBm
+                mfSetOn dirt #("texmapUnoccludedOn") true
             )
             if aoSlot != undefined then (
                 try (
@@ -425,7 +432,10 @@ def build_mscript(
     # 渲染结果会回落到默认 40 的观感，与用户设的 0 不一致）。
     emitted: set[str] = set()
     for k, v in scalars.items():
-        for sw_name, sw_val in on_switch_map.get(str(k), {}).items():
+        for sw_key, sw_val in on_switch_map.get(str(k), {}).items():
+            # 使能属性名允许写成元组做多候选（不同渲染器版本真名不同），
+            # mfAssign 收到候选数组会按属性存在性取第一个。
+            sw_name = '","'.join(str(x) for x in sw_key) if isinstance(sw_key, (tuple, list)) else str(sw_key)
             if sw_name in emitted:
                 continue
             try:
@@ -512,14 +522,14 @@ def build_mscript(
             continue
         tex_lines.append(attach_line(kws, p))
 
-    # AO：V-Ray 下用 VRayDirt 叠加，原漫反射位图保留在 unoccludedColor
+    # AO：V-Ray 下用污垢纹理（真机类名 VRay_污垢）叠加，原漫反射位图写进 texmap_unoccluded_color
     ao_path = tex_paths.get("ao")
     if vray_props.get("__activate_ao") and ao_path and is_corona:
         tex_lines.append(_AO_BLOCK_CORONA.replace("{ao_esc}", _ms_escape(ao_path)))
     elif vray_props.get("__activate_ao") and ao_path:
         ao_esc = _ms_escape(ao_path)
         tex_lines.append(f'''    (
-        -- AO 叠加：仅 V-Ray 材质 + VRayDirt 可用时执行
+        -- AO 叠加：仅 V-Ray 材质 + 污垢纹理（VRay_污垢）可用时执行
         local aoSlot = mfFindSlotEx mtl #("texmap_diffuse") #("diffuse")
         local baseBm = undefined
         local dirt = undefined
@@ -535,18 +545,46 @@ def build_mscript(
         if dirt != undefined then (
             mfSetOn dirt #("radius", "半径") 24.0
             mfSetOn dirt #("subdivs", "细分") 16
-            mfSetOn dirt #("occludedColor", "遮挡颜色") (color 30 30 30)
-            if baseBm != undefined then (
-                if not (mfSetOn dirt #("unoccludedColor", "未遮挡颜色") baseBm) do
-                    mfSetOn dirt #("unoccludedColor", "未遮挡颜色") (color 255 255 255)
-            ) else (
-                mfSetOn dirt #("unoccludedColor", "未遮挡颜色") (color 255 255 255)
+            mfSetOn dirt #("occluded_color") (color 30 30 30)
+            -- 2026-11-22 真机修复：旧实现把漫反射位图塞进 unoccludedColor（Color 类型），
+            -- setProperty 必然失败又被静默回退成纯白，于是 AO 一开 albedo 贴图整体丢失，
+            -- 日志却照打「漫反射贴图保留」（写入失败被当成成功）。真机回读实测：
+            -- texmap_diffuse 处的污垢纹理内部 texmap 为 undefined。真机 getPropNames 全量枚举
+            -- （44 个属性）证实：污垢纹理没有 texmap 槽，真正的位图入口是
+            -- texmap_unoccluded_color（配套 texmap_unoccluded_color_on / _multiplier）。
+            -- 位图必须落到该槽并打开 _on 开关，写后回读确认，失败必须计入 mf_FAIL。
+            local baseKept = false
+            if baseBm != undefined do (
+                local bn = toLower ((classof baseBm) as string)
+                if ((findString bn "dirt") != undefined or (findString bn "污垢") != undefined) do (
+                    local inner = undefined
+                    try ( inner = getProperty baseBm #texmap_unoccluded_color ) catch ( inner = undefined )
+                    if inner != undefined do baseBm = inner
+                )
+                if (isKindOf baseBm TextureMap) then (
+                    try (
+                        setProperty dirt #texmap_unoccluded_color baseBm
+                        setProperty dirt #texmap_unoccluded_color_on true
+                        local back = undefined
+                        try ( back = getProperty dirt #texmap_unoccluded_color ) catch ( back = undefined )
+                        if (back == baseBm) do baseKept = true
+                    ) catch ( baseKept = false )
+                ) else (
+                    baseKept = (mfSetOn dirt #("unoccluded_color") baseBm)
+                )
+            )
+            if (not baseKept) do (
+                mfSetOn dirt #("unoccluded_color") (color 255 255 255)
+                mf_FAIL += 1
+                mfLog "  [FAIL] AO 叠加未能接回原漫反射贴图（VRayDirt.texmap 写入或回读失败），albedo 已丢失"
             )
             if aoSlot != undefined then (
                 try (
                     setProperty mtl aoSlot dirt
                     mf_OK += 1
-                    mfLog ("  [OK] AO 已用 " + ((classof dirt) as string) + " 叠加（漫反射贴图保留）")
+                    local keepTxt = "（原漫反射已丢失，AO 层内为纯色）"
+                    if baseKept do keepTxt = "（漫反射贴图保留在 AO 未遮挡槽）"
+                    mfLog ("  [OK] AO 已用 " + ((classof dirt) as string) + " 叠加" + keepTxt)
                 ) catch (
                     mf_FAIL += 1
                     mfLog "  [FAIL] AO 挂接失败"

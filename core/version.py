@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.11.2"
+__version__ = "0.11.3"
 VERSION_TUPLE = tuple(int(x) for x in __version__.split("."))
 # 别名：scripts/docs_sync.py 用 getattr(V, "VERSION", "") 取版本号回写文档。
 # 这里必须有同名常量，否则取到空串，文档里的版本号会被写成「当前 」（静默清空而非报错）。
@@ -22,6 +22,14 @@ VERSION = __version__
 
 # 最近一次版本的变更摘要，打包时会写进 dist/BUILD_INFO.json，方便回溯"这包有啥"
 RELEASE_NOTES = {
+    "0.11.3": [
+        "【真机缺陷·Corona 色散开关属性名不存在】使能开关写的是 dispersionEnable，本机 Corona 物理材质 148 个属性里没有这个名字（getPropNames 全量枚举），色散强度写进去也不亮，用户只会看到「勾了色散没反应」。真名是 refractDispersionEnable；CORONA_PROP_ON_SWITCH 改为双候元组（refractDispersionEnable / dispersionEnable）后按序命中，ondevice_registry.json 的 dispersion_on_prop 改为真名并把旧名列入 rejected，_SPECS 的「色散使能属性」判据同步收紧（旧名一出现即报）",
+        "【真机缺陷·V-Ray AO 把漫反射位图弄丢】旧实现把 VRayDirt 当普通贴图挂在 texmap_diffuse 上，注释里写 VRayDirt.unoccludedColor 接管原图。真机核验三条全错：①VRayDirt / VRay_Dirt / VRayBitmap 三个英文类名在本机均 UndefinedClass，污垢纹理的类名只有本地化「VRay_污垢」；②该类 44 个属性中根本没有 texmap 槽，位图唯一入口是 texmap_unoccluded_color（配 texmap_unoccluded_color_on）；③颜色属性是下划线命名 occluded_color / unoccluded_color，驼峰写法不存在。修法：位图改写进 texmap_unoccluded_color 并打开 _on，颜色/位图候选链只保留真机实证名，代码注释记入取证日期与属性总数",
+        "【真机缺陷·Corona AO 位图静默不参与求值】CoronaAO 的 18 个属性里，未遮挡位图槽 texmapUnoccluded 必须同时打开 texmapUnoccludedOn 才参与求值，旧实现只写了槽没写开关，AO 只剩纯色叠加、漫反射贴图等于失效，且脚本不报错（假成功）。已补 texmapUnoccludedOn=true，并删掉真机不存在的 texmapUnoccluded 别名候选",
+        "【注册表扩容】ondevice_registry.json 的 vray 段新增 AO 六项（类名 / 证伪类名 / 属性数 44 / 位图槽 / 使能开关 / 颜色属性）与验证说明，corona 段新增 dispersion_on_prop_rejected；ondevice_registry.py 的 _SPECS 增 4 条 AO 静态判据（类名、位图槽、遮挡色、未遮挡色），静态自检从此能拦住「又写回 VRayDirt / occludedColor」这类回退",
+        "实测：真机套件 MF_0.11.2_ondevice_verify.ms 覆盖 16 预设 × 2 渲染器 = 32 用例，修复前 SUITE_PASS=17 / SUITE_FAIL=15（失败全部是 V-Ray 侧 slot-miss: texmap_diffuse 期望 src_albedo.png 实际为空，即 AO 吃掉了漫反射位图），修复后 SUITE_VERDICT=PASS（PASS=32 / FAIL=0 / DEGRADED=0 / SKIP=0，25.2s）；另单独回读两份材质确认链路：VRayMtl.texmap_diffuse=VRay_污垢 且其 texmap_unoccluded_color=Bitmaptexture、_on=true；_Corona物理材质.baseTexmap=CoronaAO 且其 texmapUnoccluded=Bitmaptexture、texmapUnoccludedOn=true",
+        "实测：run_all_checks 14 项全 PASS",
+    ],
     "0.11.2": [
         "【高·导出后自检查的是内存不是磁盘】自检此前校验内存里的 draft 字符串，磁盘上的 .ms 与 draft 不一致时依旧判 ok=True，等于用户真正拿到的那份文件从未被检查过。改为只认磁盘：core/export_guard.check_export_file() 读盘并严格解码，文件不存在 / 编码无法识别 / 内容为空三种情况一律 ok=False；core/exporters/ms_exporter.export_with_meta() 回传真实落盘结果（path / encoding / bytes / sha256 / chars），export() 退化为薄封装，不再存在「按内存判断成功」的口径",
         "【高·中文脚本编码乱码】脚本按 GBK 落盘（3ds Max 中文版 fileIn 需要），旧自检用 utf-8 读，中文脚本要么解码异常要么读出错字。export_guard._detect_encoding() 改为 utf-8 严格 → gbk 严格两级探测，两级都解不开即报「编码无法识别」；app.py 三处导出改调 check_export_file() 并把 script_encoding 回给前端，用户能直接看到这次落盘到底是什么编码。scripts/export_guard_check.py 新增 part_selfcheck_disk 反例：磁盘上放坏文件，自检必须判 FAIL",

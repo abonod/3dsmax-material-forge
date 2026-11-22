@@ -113,7 +113,7 @@
 | `__NORMAL__` | — | 旧占位符，导出时统一改写成 `__NORMALWRAP__` |
 | `__ROUGHNESS__` | `roughness` | 粗糙 |
 | `__DISPLACE__` | `displacement` | 置换 |
-| `__AO__` | `diffuse` | 走 VRayDirt 叠加，不占独立槽（见下节） |
+| `__AO__` | `diffuse` | 走污垢纹理叠加，不占独立槽（见下节） |
 | `__OPACITY__` | `opacity` | 透明度 |
 
 凹凸槽的口径：**VRayMtl.bump 里只允许出现高度图，或包着法线图的法线节点**。法线图绝不直挂 `bump`——V-Ray 会把法线 RGB 当高度采样，出乱七八糟的假凹凸。
@@ -140,10 +140,10 @@ V-Ray 插件类名随界面语言本地化：英文版是 `VRayNormalMap`，中�
 
 ## AO 的非破坏性叠加
 
-AO 不做成独立贴图槽（VRayMtl 没有 AO 槽），而是用 `VRayDirt` 包住已有的漫反射位图：
+AO 不做成独立贴图槽（VRayMtl 没有 AO 槽），而是用污垢纹理（中文版类名 `VRay_污垢`）包住已有的漫反射位图：
 
-- 原漫反射位图挂到 `VRayDirt.unoccludedColor`，遮蔽区域自然变暗。
-- 仅在"VRayMtl 材质 + VRayDirt 类可用 + 已有 diffuse 贴图"三者同时成立时执行，否则跳过并记日志。
+- 原漫反射位图挂到污垢纹理的 `texmap_unoccluded_color` 槽，并把 `texmap_unoccluded_color_on` 置 true（只写槽不开开关位图不参与求值，AO 会静默变成纯色叠加），遮蔽区域自然变暗。
+- 仅在"VRayMtl 材质 + 污垢纹理类可用 + 已有 diffuse 贴图"三者同时成立时执行，否则跳过并记日志。
 - 因此 AO 叠加不会覆盖用户已挂的贴图，重复执行也不会叠加两层。
 
 ## 材质降级链

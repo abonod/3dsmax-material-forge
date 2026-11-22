@@ -202,7 +202,23 @@ def check_e_rejected_names():
     targets += sorted(glob.glob(os.path.join(ROOT, "references", "*.md")))
     targets += sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
 
-    hits = []
+    # 2026-11-22 真机：AO 污垢纹理的英文类名（VRayDirt / VRay_Dirt）在本机中文版确为
+    # UndefinedClass，但它们必须保留在候选链里作降级探测——英文版 3ds Max 下这两个名字
+    # 是有效的，删掉等于让英文环境失去 AO。所以「证伪名零残留」不能按字符串出现即报，
+    # 否则会逼着人删掉合法的兼容候选。
+    # 正确口径：证伪名**单独出现**（= 当成唯一可用名写死）判 FAIL；
+    #           同一行与真机实证名同现（候选链 / 对照说明）视为合法用法，只计数不报。
+    verified = set()
+    for rk in reg:
+        for field, val in reg[rk].items():
+            if field.endswith("_rejected"):
+                continue
+            vals = val if isinstance(val, list) else [val]
+            for v in vals:
+                if isinstance(v, str) and len(v) > 3:
+                    verified.add(v)
+
+    hits, paired = [], 0
     for fp in targets:
         if not os.path.exists(fp):
             continue
@@ -210,12 +226,17 @@ def check_e_rejected_names():
         for i, line in enumerate(body.splitlines(), 1):
             for t in toks:
                 if t in line:
-                    hits.append("%s:%d 残留证伪名 %s" % (os.path.relpath(fp, ROOT), i, t))
+                    if any(v in line for v in verified):
+                        paired += 1
+                        continue
+                    hits.append("%s:%d 残留证伪名 %s（该行无真机实证名同现）"
+                                % (os.path.relpath(fp, ROOT), i, t))
     if hits:
         for h in hits[:20]:
             bad("E " + h)
     else:
-        ok("E 证伪类名零残留（扫描 %d 个名字 / %d 个文件）" % (len(toks), len(targets)))
+        ok("E 证伪类名零残留（扫描 %d 名 / %d 文件；候选链与对照说明放行 %d 处）"
+           % (len(toks), len(targets), paired))
 
 
 def main() -> int:

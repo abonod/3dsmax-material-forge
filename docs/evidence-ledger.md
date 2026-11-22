@@ -158,6 +158,35 @@ python scripts/p_series_audit.py --selftest # 6 个反例，验证判据有判�
 
 ---
 
+## 3.4 0.11.3：真机落槽验证（2026-11-22，设备已执行）
+
+这一节与前面各节性质不同：**它进了「已验证」列**，因为证据是本机 Max 会话真跑出来的日志，不是静态检查。
+
+| 项 | 内容 |
+|---|---|
+| 套件 | `MF_0.11.3_ondevice_verify.ms`（自包含 32 份 0.11.3 产物 + 5 张贴图，2,316,679 字节） |
+| 执行 | 3dsmax-mcp 在已运行会话内 `fileIn`，全程无人工点击 |
+| 规模 | 16 预设 × V-Ray / Corona = 32 用例，353 条断言 |
+| 结果 | PASS=30 / DEGRADED=2 / FAIL=0 / SKIP=0，`SUITE_VERDICT=PASS`，mismatch=0 |
+| 复现 | 同一会话连跑两次完全一致（24.8s / 24.9s） |
+| 静态旁证 | 32 份产物过 `verify_ms.py`：V-Ray 16/16、Corona 16/16 |
+| 证据 | `docs/ondevice-0.11.3-verify.txt`（收尾记录）、`docs/evidence/ondevice-0.11.3-pass-run1-165722.txt`（第一次 PASS）、`docs/evidence/ondevice-0.11.3-pass-run2-165841.txt`（复现性）、`docs/evidence/ondevice-0.11.3-baseline-fail-162310.txt`（首跑 FAIL 现场）、`docs/evidence/ondevice-0.11.3-report.md`（报告正文） |
+
+覆盖到「已验证」的具体链路：材质类落槽、medit 槽位身份、贴图挂载与路径存在性、法线/凹凸语义与强度归属、参数回读一致。
+**未覆盖**：渲染出图目视对比（那走 `gen_visual_probe.py` 的 PNG 列）、跨版本（Max 2021/2022 等仍 untested）。
+
+两个 DEGRADED 用例不是缺陷，是 Max 落槽时会复制材质：`[01] MF_metal_vray`（槽 1，checked=12）、`[02] MF_metal_corona`（槽 2，checked=8），二者参数回读 `mismatch=0`，即编辑器内是逐项一致的副本、仅对象身份不同。
+
+**本轮首跑 32/32 FAIL 全部来自验证装置，产品代码未改**。三条装置判据已固化，下次重造套件必须沿用：
+
+1. 期望表与实际导出命名同源（不允许手写"应该叫什么"；改产物必须重建期望表）；
+2. 清槽要带默认名 `NN - Default` 且先置 `undefined`（`StandardMaterial()` 的 `Material #N` 会让落槽校验误报，口径已同步回 `SKILL.md` P1 第 1 条）；
+3. 落槽证明用「身份相等 OR 同名且参数回读全一致」，后者记 DEGRADED，禁止静默并入 PASS。
+
+**口径更新**：自本节起，对外说"0.11.3 真机验证通过"以本节为据；§3.3 的"真机结论只有 0.11.1"只在静态门禁语境下有效，已被本节取代。
+
+---
+
 ## 4. 这张台账怎么用
 
 - **对外说明能力时**：只引「已验证」列，`无` 的行必须说"代码路径已覆盖，未在目标版本验证"。

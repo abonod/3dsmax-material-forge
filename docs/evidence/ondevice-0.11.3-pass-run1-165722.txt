@@ -1,0 +1,54 @@
+==============================================================================
+3dsmax-material-forge on-device verification suite  v0.11.3
+started: 20261122-165722
+3ds Max build: 26000   current renderer: Arnold
+temp run dir: C:\Users\ADMINI~1\AppData\Local\Temp\mf_ondevice_20261122-165722
+==============================================================================
+SUITE_CASES=32
+SUITE_EMBED_OK=32
+SUITE_TEX_OK=5 / 5
+SUITE_SCENE_HELD=true
+SUITE_MEDIT_SLOTS_RESET=24
+[01] MF_metal_vray (metal/vray) | DEGRADED | ok=14 fail=0 bad=0 degraded=0 failLines=0 checked=12 mismatch=0 slot=1 cls=VRayMtl :: medit-slot 1 holds a copy: params identical to the export spec, object identity differs (Max re-instanced the material when placing it)
+[02] MF_metal_corona (metal/corona) | DEGRADED | ok=10 fail=0 bad=0 degraded=0 failLines=0 checked=8 mismatch=0 slot=2 cls=_Corona物理材质 :: medit-slot 2 holds a copy: params identical to the export spec, object identity differs (Max re-instanced the material when placing it)
+[03] MF_plastic_vray (plastic/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=3 cls=VRayMtl :: ok
+[04] MF_plastic_corona (plastic/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=4 cls=_Corona物理材质 :: ok
+[05] MF_concrete_vray (concrete/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=0 slot=5 cls=VRayMtl :: ok
+[06] MF_concrete_corona (concrete/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=7 mismatch=0 slot=6 cls=_Corona物理材质 :: ok
+[07] MF_wood_vray (wood/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=7 cls=VRayMtl :: ok
+[08] MF_wood_corona (wood/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=8 cls=_Corona物理材质 :: ok
+[09] MF_fabric_vray (fabric/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=0 slot=9 cls=VRayMtl :: ok
+[10] MF_fabric_corona (fabric/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=9 mismatch=0 slot=10 cls=_Corona物理材质 :: ok
+[11] MF_leather_vray (leather/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=11 cls=VRayMtl :: ok
+[12] MF_leather_corona (leather/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=12 cls=_Corona物理材质 :: ok
+[13] MF_tile_vray (tile/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=13 cls=VRayMtl :: ok
+[14] MF_tile_corona (tile/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=14 cls=_Corona物理材质 :: ok
+[15] MF_glass_vray (glass/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=16 mismatch=0 slot=15 cls=VRayMtl :: ok
+[16] MF_glass_corona (glass/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=9 mismatch=0 slot=16 cls=_Corona物理材质 :: ok
+[17] MF_wood_floor_vray (wood_floor/vray) | PASS | ok=16 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=17 cls=VRayMtl :: ok
+[18] MF_wood_floor_corona (wood_floor/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=18 cls=_Corona物理材质 :: ok
+[19] MF_floor_tile_vray (floor_tile/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=0 slot=19 cls=VRayMtl :: ok
+[20] MF_floor_tile_corona (floor_tile/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=7 mismatch=0 slot=20 cls=_Corona物理材质 :: ok
+[21] MF_marble_vray (marble/vray) | PASS | ok=18 fail=0 bad=0 degraded=0 failLines=0 checked=16 mismatch=0 slot=21 cls=VRayMtl :: ok
+[22] MF_marble_corona (marble/corona) | PASS | ok=12 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=22 cls=_Corona物理材质 :: ok
+[23] MF_wallpaper_vray (wallpaper/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=0 slot=23 cls=VRayMtl :: ok
+[24] MF_wallpaper_corona (wallpaper/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=7 mismatch=0 slot=24 cls=_Corona物理材质 :: ok
+[25] MF_wallcloth_vray (wallcloth/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=0 slot=1 cls=VRayMtl :: ok
+[26] MF_wallcloth_corona (wallcloth/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=9 mismatch=0 slot=1 cls=_Corona物理材质 :: ok
+[27] MF_latex_paint_vray (latex_paint/vray) | PASS | ok=13 fail=0 bad=0 degraded=0 failLines=0 checked=11 mismatch=0 slot=1 cls=VRayMtl :: ok
+[28] MF_latex_paint_corona (latex_paint/corona) | PASS | ok=9 fail=0 bad=0 degraded=0 failLines=0 checked=7 mismatch=0 slot=1 cls=_Corona物理材质 :: ok
+[29] MF_alu_frosted_vray (alu_frosted/vray) | PASS | ok=14 fail=0 bad=0 degraded=0 failLines=0 checked=14 mismatch=0 slot=1 cls=VRayMtl :: ok
+[30] MF_alu_frosted_corona (alu_frosted/corona) | PASS | ok=10 fail=0 bad=0 degraded=0 failLines=0 checked=10 mismatch=0 slot=1 cls=_Corona物理材质 :: ok
+[31] MF_alu_brushed_vray (alu_brushed/vray) | PASS | ok=15 fail=0 bad=0 degraded=0 failLines=0 checked=13 mismatch=0 slot=1 cls=VRayMtl :: ok
+[32] MF_alu_brushed_corona (alu_brushed/corona) | PASS | ok=11 fail=0 bad=0 degraded=0 failLines=0 checked=9 mismatch=0 slot=1 cls=_Corona物理材质 :: ok
+==============================================================================
+SUITE_CASES=32
+SUITE_PASS=30
+SUITE_DEGRADED=2
+SUITE_FAIL=0
+SUITE_SKIP=0
+SUITE_SECONDS=24.78
+SUITE_LOG=C:\Users\Administrator\AppData\Roaming\Tencent\Marvis\User\oAN1i2eTBlFqNO1PX28nWZeh4Bv4\workspace\conv_885b8974b74645d4b6e13527782e2296\output\MF_ONDEVICE_LOG_20261122-165722.txt
+SUITE_VERDICT=PASS
+==============================================================================
+scene snapshot will be restored (fetchMaxFile) after this log is closed

@@ -41,7 +41,7 @@ Python 侧只做三件事：图像推导、参数组织、文本脚本生成。�
 2. **全 try/catch** —— 单个属性写入失败只记日志，不中断脚本。
 3. **材质双分支** —— `VRayMtl` 不存在时自动降级 `PhysicalMaterial` → `StandardMaterial`。
 4. **贴图槽类型校验** —— 只认值为 `textureMap` 或 `undefined` 的属性，避免把 `diffuse_multiplier` 这类数值属性误当贴图槽。
-5. **AO 非破坏性叠加** —— 用 `VRayDirt` 包住原漫反射位图（`unoccludedColor = albedo`），不会覆盖已挂的贴图。
+5. **AO 非破坏性叠加** —— 用污垢纹理（中文版类名 `VRay_污垢`）包住原漫反射位图：原图挂到 `texmap_unoccluded_color` 并打开 `texmap_unoccluded_color_on`，不会覆盖已挂的贴图。
 6. **自诊断** —— 执行结束在 MAXScript Listener 打印成功/失败明细与材质类型。
 
 ## 3.1 Corona 目标（0.9.0 新增）
@@ -101,7 +101,7 @@ python app.py
 | 端口被占用 | `启动.bat` 发现 8765 已监听会直接打开页面而不重复启动；确需换端口时修改 `app.py` 中 `uvicorn.run` 的端口参数 |
 | `.ms` 在英文 Windows 打开乱码 | `.ms` 按 GBK + CRLF（无 BOM）写出以贴合中文版 MaxScript；建议材质名与贴图名使用英文/拼音，或将文件以本机 ANSI 编码另存后再执行 |
 | 想用 GPU 加速贴图 | 无需 GPU：五通道全部由 PIL + numpy 计算；`core/ai_enhance.py` 的在线增强为可选，不配 Key 时自动回落本地算法 |
-| 未装 V-Ray 能导出吗 | 能。`.ms` 会降级为 `PhysicalMaterial`，`VRayDirt` 等专属属性被跳过，并在 MAXScript Listener 打印失败明细 |
+| 未装 V-Ray 能导出吗 | 能。`.ms` 会降级为 `PhysicalMaterial`，污垢纹理（`VRay_污垢`）等专属属性被跳过，并在 MAXScript Listener 打印失败明细 |
 | 材质库 `.mat` 没生成 | `.mat` 是 Autodesk 私有二进制格式，只能由 3ds Max 在执行 `.ms` 时写入，无法离线生成 |
 
 ## 5. 目录结构

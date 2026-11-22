@@ -91,7 +91,7 @@
       "displacement_size_switch": "overrideSize",
       "displacement_size_type_prop": "sizeType",
       "dispersion_prop": "dispersion",
-      "dispersion_on_prop": "dispersionEnable",
+      "dispersion_on_prop": "refractDispersionEnable",
       "dispersion_default": 40.0,
       "dispersion_clamped": false,
       "mtl_texmap_slots": [
@@ -138,7 +138,11 @@
         "Corona置换修改器",
         "CoronaFumeFXMod",
         "VRayCoronaScatterMod"
-      ]
+      ],
+      "dispersion_on_prop_rejected": [
+        "dispersionEnable"
+      ],
+      "dispersion_on_prop_verified": "2026-11-22 真机 getPropNames 全量枚举：本机 Corona 物理材质无 dispersionEnable，使能真名为 refractDispersionEnable"
     },
     "vray": {
       "material_class": "VRayMtl",
@@ -177,7 +181,23 @@
       "dispersion_on_prop": "refraction_dispersion_on",
       "dispersion_default": 50.0,
       "dispersion_clamped": false,
-      "bump_amount_prop": "bump_map_multiplier"
+      "bump_amount_prop": "bump_map_multiplier",
+      "ao_wrap_class": "VRay_污垢",
+      "ao_wrap_class_rejected": [
+        "VRayDirt",
+        "VRay_Dirt",
+        "VRayBitmap"
+      ],
+      "ao_wrap_prop_count": 44,
+      "ao_bitmap_slot": "texmap_unoccluded_color",
+      "ao_bitmap_slot_on_prop": "texmap_unoccluded_color_on",
+      "ao_bitmap_slot_rejected": [
+        "texmap",
+        "texmap_on"
+      ],
+      "ao_occluded_color_prop": "occluded_color",
+      "ao_unoccluded_color_prop": "unoccluded_color",
+      "ao_verified": "2026-11-22 真机：VRayDirt/VRay_Dirt/VRayBitmap 三个英文类在本机均 UndefinedClass；污垢纹理 44 个属性中无 texmap 槽，位图必须走 texmap_unoccluded_color 并置 _on；颜色属性为下划线命名 occluded_color / unoccluded_color"
     }
   }
 }

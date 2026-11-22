@@ -2,7 +2,8 @@
 """V-Ray 专属模板片段：本地化类名解析 + 材质创建"""
 
 VRAY_FNS = r"""    -- 污垢（AO）纹理类名同样本地化：中文版 V-Ray 6 实测为 "VRay_污垢"，
-    -- 英文字面量 VRayDirt / VRay_Dirt 均不存在，直接调用会静默降级。
+    -- 真机实证可用名是 VRay_污垢，首位必须优先它；英文字面量 VRayDirt / VRay_Dirt
+    -- 在本机中文版均不存在（UndefinedClass），只作英文环境下的候选链末位降级。
     fn mfDirtClass = (
         local cands = #("VRayDirt", "VRay_Dirt", "VRay_污垢")
         for n in cands do (

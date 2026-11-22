@@ -23,7 +23,7 @@ CORONA_FNS = r"""    -- ---------------- Corona 类名解析（候选链，全�
     -- 直接用英文 CoronaPhysicalMtl() 会失败），所以全部类名走「英文名 → 中文名 → 属性特征扫描」
     -- 三级候选链，不硬编码任何单一名字。
     -- AO（污垢）：Corona 的 AO 是独立贴图节点 CoronaAO，
-    -- 与 V-Ray 的 VRayDirt 用法一致（作为普通 textureMap 挂到凹凸/自发光槽）。
+    -- 与 V-Ray 的污垢纹理（中文版类名 VRay_污垢）用法一致（作为普通 textureMap 挂到凹凸/自发光槽）。
     -- ---------------- Corona 材质类解析（真机核对后重写）----------------
     -- 真机核对结论（本机 Corona + 3ds Max 2024 中文版，Material.classes 枚举 + 实例化验证）：
     --   1) 中文版 classof 显示名被本地化为「_Corona物理材质」，直接 execute "CoronaPhysicalMtl()"

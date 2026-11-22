@@ -32,7 +32,7 @@
   {
     "item": "albedo 指向烘焙预览图",
     "expect": "含 /preview/albedo.png",
-    "actual": "/files/aea77e38a920/preview/albedo.png?t=1795316739278",
+    "actual": "/files/740e78b37834/preview/albedo.png?t=1795341711866",
     "ok": true
   },
   {
@@ -62,7 +62,7 @@
   {
     "item": "换色后 albedo 仍走烘焙预览图",
     "expect": "含 /preview/albedo.png",
-    "actual": "/files/aea77e38a920/preview/albedo.png?t=1795316749132",
+    "actual": "/files/740e78b37834/preview/albedo.png?t=1795341721549",
     "ok": true
   },
   {
@@ -75,8 +75,8 @@
     "item": "球面颜色倾向青绿",
     "expect": "G/B >= R（目标 #2E6E6A）",
     "actual": [
-      37,
-      113,
+      35,
+      114,
       112
     ],
     "ok": true
@@ -85,22 +85,22 @@
     "item": "二次换色球面偏红",
     "expect": "R 明显最大（目标 #C24B3A）",
     "actual": [
-      202,
-      76,
-      60
+      195,
+      77,
+      64
     ],
     "ok": true
   },
   {
     "item": "两次选色画面确有变化",
     "expect": "通道差之和 > 40",
-    "actual": 254,
+    "actual": 245,
     "ok": true
   },
   {
     "item": "纯色模式可导出 .ms",
     "expect": "结果区出现 .ms 路径",
-    "actual": "导出成功\n.ms\nD:\\Marvis skill\\3dsmax-material-forge\\output\\aea77e38a920\\export\\LatexPaint_FFFFFF\\LatexPaint_FFFFFF.ms\n导出目录\nD:\\Marvis skill\\3dsmax-material-forge\\outp",
+    "actual": "导出成功\n.ms\nD:\\Marvis skill\\3dsmax-material-forge\\output\\740e78b37834\\export\\LatexPaint_FFFFFF\\LatexPaint_FFFFFF.ms\n导出目录\nD:\\Marvis skill\\3dsmax-material-forge\\outp",
     "ok": true
   },
   {

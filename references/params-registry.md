@@ -127,8 +127,8 @@ Param(
 - `__HEIGHT__` / `__NORMALWRAP__` / `__NORMALBUMP__` —— 法线/高度系语义槽，共占 `bump`：`__HEIGHT__` 直挂高度图；`__NORMALWRAP__` 只包法线（bump 子槽留空）；`__NORMALBUMP__` 法线进 normal 子槽、高度进 bump 子槽。
 - `__NORMAL__` —— 遗留标记，`resolve_vray()` 在仅法线场景直接输出 `__NORMALWRAP__`，导出器遇到旧数据里的 `__NORMAL__` 也统一改写为 `__NORMALWRAP__`。
 - `__DIFFUSE__` / `__ROUGHNESS__` / `__DISPLACE__` / `__OPACITY__` —— 常规语义贴图槽，导出器按 `TEX_SLOTS` 找到实际槽位后挂对应 bitmap。
-- `__AO__` —— 指向 diffuse 槽，但实际走 VRayDirt 包漫反射位图的非破坏性叠加。
-- `__activate_ao` —— 触发 VRayDirt 的 AO 叠加动作。
+- `__AO__` —— 指向 diffuse 槽，但实际走污垢纹理包漫反射位图的非破坏性叠加。
+- `__activate_ao` —— 触发污垢纹理的 AO 叠加动作。
 
 新增这类标记要同步改 `ms_exporter.py` 的贴图块处理逻辑，否则标记会被当成普通字符串值写进属性。
 

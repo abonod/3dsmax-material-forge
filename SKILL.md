@@ -401,7 +401,7 @@ output/<job_id>/
 
 ### 防假通过（P1）：三条硬约束
 
-1. **回读前必须清空 medit**：`for i=1 to 24 do meditMaterials[i] = StandardMaterial()`。不清空就会读到上一轮残留材质，fileIn 全 FAIL 但日志看起来一切正常。
+1. **回读前必须清空 medit，且替代材质要带默认名**：`for i=1 to 24 do (meditMaterials[i] = undefined; meditMaterials[i] = StandardMaterial name:(formattedPrint i format:"02d" + " - Default"))`。只写 `StandardMaterial()` 是不够的——默认名是 `Material #N`，名字本身就把槽位标记成"已占用"，落槽校验会误报 `material-not-in-medit-slot`；槽内旧材质不先置 `undefined` 还会残留贴图/属性。这条口径由 0.11.3 真机两次连跑实测得出，明细见 `docs/ondevice-0.11.3-verify.txt` 装置缺陷 2。
 2. **fileIn 与回读对象必须绑定**：日志必须有 `BIND_OK=<文件名>|<材质名>`；判据器把「fileIn [FAIL] 但回读有结果」和「回读材质名与预期不符」都判 FAIL。
 3. **降级不能混进 OK**：版本能力缺失走 `mfDegrade`，`VERDICT` 输出 `DEGRADED` 并附条数；「DEGRADED>0 却报 OK」判 FAIL。
 
@@ -424,7 +424,7 @@ output/<job_id>/
 
 ## 版本与打包
 
-版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.2`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
+版本号只有一个来源：`core/version.py` 的 `__version__`（当前 `0.11.3`）。SKILL.md frontmatter 的 `version` 由打包脚本自动同步，**不要手改**。
 
 ```
 python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScript 静态体检）→ 打包 → 写清单
@@ -450,6 +450,7 @@ python scripts/package_skill.py     # 体检（schema 自检 + 16 预设 MAXScri
 - `references/troubleshooting.md` —— 启动失败、端口占用、贴图异常、Max 执行报错、V-Ray 版本差异的排查顺序。
 - `docs/wallpaper-pattern-route.md` —— 壁纸花纹技术路线（ADR-001）：为什么不做程序化生成、工具与素材的职责边界、什么情况下改主意。
 - `docs/evidence-ledger.md` —— 证据台账：哪些是真机验过的、哪些只是机制在位。回答"支持哪个版本""效果对吗"之前必读，凭印象作答等于夸大。
+- `docs/ondevice-0.11.3-verify.txt` —— 0.11.3 真机落槽验证收尾记录（32 用例 PASS=30/DEGRADED=2/FAIL=0，两次可复现），含三条验证装置判据；重造真机套件前必读。
 - `docs/version-matrix.md` —— 版本矩阵（Max 2021–2026 / V-Ray 5–7 / Corona 9–13），由 `core/compat.py` 生成，勿手改。
 
 ## 验收标准
