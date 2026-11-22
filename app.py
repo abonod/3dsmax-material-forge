@@ -457,6 +457,76 @@ def _resolve_renderer(values: dict, payload: dict) -> str:
     return "corona" if raw in ("corona", "cr", "coronamtl") else "vray"
 
 
+def _extra_channel_plan(merged: dict) -> list[tuple[str, str]]:
+    """三通道开关 -> 需要的通道名（只有开了才算数）"""
+    return [(c, f) for c, f in (("metalness", "metalness_tex_on"),
+                                ("emissive", "emissive_tex_on"),
+                                ("sheen", "sheen_tex_on")) if merged.get(f)]
+
+
+def _ensure_extra_channels(tex_out: Path, final_tex: dict, merged: dict) -> tuple[list, list]:
+    """导出时补齐三通道贴图：开关开了但图上没有，就地按同一套算法补生成。
+
+    为什么兜底放在导出端：三通道图是「勾选才出」的，而前端勾通道时并不重跑推导
+    （重算按钮只带 detail / normal_strength），于是「勾上金属度贴图 -> 直接导出」
+    这条最顺手的路径会拿到一份没有 metalness 槽的 .ms——参数说要、脚本里没有，
+    用户以为生效了。导出是最终真相，缺图在这里补，比指望前端多一次往返可靠。
+    源图缺（例如纯色模式没 height）补不出来的，走 skipped 明确告知，不静默吞掉。
+    """
+    made: list[str] = []
+    skipped: list[str] = []
+    plan = _extra_channel_plan(merged)
+    if not plan:
+        return made, skipped
+
+    import numpy as np
+    from PIL import Image
+
+    def _read(name):
+        p = final_tex.get(name)
+        if not p or not os.path.exists(p):
+            return None
+        with Image.open(p) as im:
+            return np.asarray(im.convert("L"), dtype=np.float32) / 255.0
+
+    def _save(arr, path):
+        u8 = np.clip(arr * 255.0 + 0.5, 0, 255).astype(np.uint8)
+        Image.fromarray(np.stack([u8] * 3, axis=-1)).save(str(path), format="PNG", optimize=True)
+        return str(path)
+
+    height, rough, albedo = _read("height"), _read("roughness"), _read("albedo")
+    for chan, _flag in plan:
+        if final_tex.get(chan):
+            continue                      # 上传时就已生成，直接用
+        need = {"metalness": height, "emissive": (albedo if albedo is not None else height),
+                "sheen": rough}[chan]
+        if need is None:
+            skipped.append(chan)
+            continue
+        try:
+            if chan == "metalness":
+                base = float(merged.get("metal_base")
+                             or (1.0 if merged.get("metal_mode") else 0.85))
+                arr = texture_engine.derive_metalness(
+                    height, None, base=base,
+                    amount=float(merged.get("metal_tex_amount") or 0.35))
+            elif chan == "emissive":
+                arr = texture_engine.derive_emissive(
+                    None, albedo,
+                    base=float(merged.get("emis_tex_base") or 1.0),
+                    amount=float(merged.get("emis_tex_amount") or 0.6))
+            else:
+                arr = texture_engine.derive_sheen(
+                    rough, None,
+                    base=float(merged.get("sheen_tex_base") or 1.0),
+                    amount=float(merged.get("sheen_tex_amount") or 0.5))
+            final_tex[chan] = _save(arr, tex_out / f"{chan}.png")
+            made.append(chan)
+        except Exception:
+            skipped.append(chan)
+    return made, skipped
+
+
 @app.post("/api/export")
 async def export(payload: dict):
     """生成 .ms MaxScript + 贴图集，返回产出物绝对路径"""
@@ -528,6 +598,9 @@ async def export(payload: dict):
             )
         except Exception as e:
             raise HTTPException(500, f"透明度贴图生成失败: {e}")
+
+    # 三通道兜底：勾了开关却在导出前没生成图的，这里按同一算法补齐
+    extra_made, extra_skipped = _ensure_extra_channels(tex_out, final_tex, merged_values)
 
     # 材质库路径（safe 已在上面按材质名算好，与导出目录名同源）
     matlib = export_dir / f"{safe}.mat"
@@ -602,6 +675,12 @@ async def export(payload: dict):
     selfcheck["dir"] = str(export_dir)
 
     note = "在 3ds Max 中执行 菜单 Scripting > Run Script，选择该 .ms 文件即可生成材质球"
+    if extra_made:
+        note = "已按开关补生成贴图（%s）；%s" % ("、".join(extra_made), note)
+    if extra_skipped:
+        note = ("以下通道缺源图未能生成，材质将不含该槽：%s；%s"
+                % ("、".join(extra_skipped), note))
+
     if not selfcheck["ok"]:
         note = export_guard.summarize(selfcheck) + "；" + note
 
@@ -618,6 +697,7 @@ async def export(payload: dict):
         "selfcheck": selfcheck,
         "script_encoding": ms_info["encoding"],
         "auto_assign": auto_assign,
+        "extra_channels": {"made": extra_made, "skipped": extra_skipped},
         "note": note,
     }
 
@@ -691,6 +771,158 @@ def open_dir(payload: dict):
     else:
         raise HTTPException(501, "仅支持 Windows")
     return {"ok": True, "path": str(target)}
+
+
+# ------------------------------------------------------------------
+# 批量：多图一次跑完全流程（推导 -> 自检 -> 导出）
+# ------------------------------------------------------------------
+# 为什么不让前端循环打 /api/upload + /api/export：
+#   那样每张图都要两次往返、两次全量参数解析，且中途失败时前端自己拼不出
+#   "第几张失败、失败在哪一步"。这里串行跑完全链，逐项回执，谁成功谁失败一目了然。
+# 串行而不是并发：贴图推导是 CPU 密集（多通道 numpy），并发只会互相抢核，
+#   反而让总耗时变长，还会把内存峰值顶到 MAX_UPLOAD_MB × 并发数。
+MAX_BATCH = 20
+
+
+@app.post("/api/batch_export")
+async def batch_export(files: list[UploadFile] = File(...), payload: str = Form("{}")):
+    """多张图各出一套材质 .ms（共用当前面板参数）"""
+    try:
+        cfg = json.loads(payload or "{}")
+        if not isinstance(cfg, dict):
+            raise ValueError("payload 必须是对象")
+    except Exception as e:
+        raise HTTPException(400, f"payload 解析失败: {e}")
+
+    values = cfg.get("values") or {}
+    renderer = _resolve_renderer(values, cfg)
+    prefix = str(cfg.get("name_prefix") or "").strip()
+    if not files:
+        raise HTTPException(400, "没有收到任何文件")
+    if len(files) > MAX_BATCH:
+        raise HTTPException(
+            413, f"一次最多 {MAX_BATCH} 张（收到 {len(files)} 张），请分批处理")
+
+    items = []
+    for f in files:
+        fn = f.filename or "material.png"
+        try:
+            up = await upload(f)            # 复用单图上传的全部校验与推导
+            job_id = up["job_id"]
+            base = Path(fn).stem or "MaterialForge"
+            name = (prefix + base) if prefix else base
+            data = await export({           # 复用单图导出的全部自检与守护
+                "job_id": job_id,
+                "material_name": name,
+                "renderer": renderer,
+                "values": values,
+            })
+            sc = data.get("selfcheck") or {}
+            items.append({
+                "file": fn, "ok": True, "name": name, "job_id": job_id,
+                "ms_path": data.get("ms_path"), "dir": data.get("texture_dir"),
+                "renderer": data.get("renderer"),
+                "selfcheck_ok": bool(sc.get("ok")),
+                "size": up.get("source_size"),
+            })
+        except HTTPException as e:
+            detail = e.detail
+            msg = detail.get("msg") if isinstance(detail, dict) else str(detail)
+            items.append({"file": fn, "ok": False, "error": msg or "导出被拦截"})
+        except Exception as e:
+            items.append({"file": fn, "ok": False, "error": f"{type(e).__name__}: {e}"})
+
+    ok_n = sum(1 for i in items if i["ok"])
+    return {
+        "renderer": renderer,
+        "total": len(items),
+        "ok_count": ok_n,
+        "fail_count": len(items) - ok_n,
+        "items": items,
+    }
+
+
+# ------------------------------------------------------------------
+# 用户自定义预设
+# ------------------------------------------------------------------
+# 存在用户目录而不是仓库目录：预设是"这个人的口味"，装 skill 包时不该被打包带走，
+# 也不该因为更新 skill 被覆盖掉。
+USER_PRESET_DIR = Path.home() / ".3dsmax_material_forge"
+USER_PRESET_FILE = USER_PRESET_DIR / "user_presets.json"
+MAX_USER_PRESETS = 40
+_PRESET_KEY_RE = re.compile(r"^[\w\u4e00-\u9fa5 .\-]{1,24}$")
+
+
+def _load_user_presets() -> dict:
+    if not USER_PRESET_FILE.is_file():
+        return {}
+    try:
+        with open(USER_PRESET_FILE, encoding="utf-8-sig") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {}
+        return {k: v for k, v in data.items() if isinstance(v, dict)}
+    except Exception:
+        # 文件坏了不能连带界面崩：当成空预设表，下次保存时整体重写
+        return {}
+
+
+def _write_user_presets(data: dict) -> None:
+    USER_PRESET_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = USER_PRESET_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(str(tmp), str(USER_PRESET_FILE))
+
+
+@app.get("/api/presets/user")
+def list_user_presets():
+    data = _load_user_presets()
+    return {"presets": data, "count": len(data), "max": MAX_USER_PRESETS,
+            "path": str(USER_PRESET_FILE)}
+
+
+@app.post("/api/presets/user")
+def save_user_preset(payload: dict):
+    """把当前参数存成命名预设（只存参数值，不存上传图与贴图）"""
+    key = str(payload.get("key") or "").strip()
+    values = payload.get("values") or {}
+    if not key:
+        raise HTTPException(400, "预设名不能为空")
+    if not _PRESET_KEY_RE.match(key):
+        raise HTTPException(400, "预设名只能是中英文、数字、空格、下划线、点、短横线，且不超过 24 字")
+    if not isinstance(values, dict) or not values:
+        raise HTTPException(400, "没有可保存的参数")
+    # 内置预设的键是英文 key、值是中文名，两者都要拦：只拦 key 的话
+    # 用户存一个「镜面」会在界面上和内置的「镜面」并排出两颗同名按钮，套哪个都不确定
+    _builtin = set(params.PRESET_LABELS.keys()) | set(params.PRESET_LABELS.values())
+    if key in _builtin:
+        raise HTTPException(409, f"「{key}」与内置预设同名，请换一个名字")
+
+    data = _load_user_presets()
+    if key not in data and len(data) >= MAX_USER_PRESETS:
+        raise HTTPException(409, f"自定义预设最多 {MAX_USER_PRESETS} 个，请先删掉不用的")
+
+    # 只收参数表里真实存在的键：tex_enabled / base_color 之类的运行时字段
+    # 不进预设，否则套用时会把用户的贴图勾选状态一起顶掉
+    valid = set(params.default_values().keys())
+    clean = {k: v for k, v in values.items() if k in valid}
+    if not clean:
+        raise HTTPException(400, "参数全部无效，未保存")
+
+    data[key] = clean
+    _write_user_presets(data)
+    return {"ok": True, "key": key, "count": len(clean),
+            "presets": data, "path": str(USER_PRESET_FILE)}
+
+
+@app.delete("/api/presets/user/{key}")
+def delete_user_preset(key: str):
+    data = _load_user_presets()
+    if key not in data:
+        raise HTTPException(404, "该自定义预设不存在")
+    del data[key]
+    _write_user_presets(data)
+    return {"ok": True, "key": key, "presets": data}
 
 
 # ------------------------------------------------------------------

@@ -187,6 +187,48 @@
       "ok": true
     },
     {
+      "item": "我的预设区块在位",
+      "expect": "容器 + 存当前参数按钮",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "保存预设后按钮出现",
+      "expect": "我的预设下多 1 个按钮",
+      "actual": 4,
+      "ok": true
+    },
+    {
+      "item": "套用我的预设后面板完整",
+      "expect": ">=5",
+      "actual": 65,
+      "ok": true
+    },
+    {
+      "item": "删除预设后按钮消失",
+      "expect": "测试预设已清理",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "item": "多选后批量按钮解锁",
+      "expect": "disabled=False 且文案含张数",
+      "actual": "批量导出 2 套材质（V-Ray）",
+      "ok": true
+    },
+    {
+      "item": "批量导出真跑通",
+      "expect": "成功 2 / 2",
+      "actual": "批量导出：成功 2 / 2sourceD:\\Marvis skill\\3dsmax-material-forge\\out",
+      "ok": true
+    },
+    {
+      "item": "单张回到常规流程",
+      "expect": "批量按钮锁定且自检可用",
+      "actual": true,
+      "ok": true
+    },
+    {
       "item": "窄屏无横向滚动",
       "expect": "scrollWidth <= 视口宽",
       "actual": "1000 <= 1000",
@@ -219,7 +261,7 @@
     {
       "item": "预览球持续出帧",
       "expect": "0.8s 内帧数增长",
-      "actual": "2496 -> 2557",
+      "actual": "1282 -> 1342",
       "ok": true
     },
     {

@@ -539,6 +539,113 @@ def main() -> int:
                  rep.get("head"), rep.get("items"),
                  (rep.get("env") or "")[:48]))
 
+        # ---------- 我的预设（0.12.0）：空态 → 保存 → 删除闭环 ----------
+        # 只断结构与链路，不碰用户既有预设：测试用唯一名字，跑完自己删掉。
+        mine = cdp.js("""(function(){
+            const box = document.getElementById('userPresets');
+            const cnt = document.getElementById('mineCount');
+            return {box: !!box, head: !!document.getElementById('btnSavePreset'),
+                    count: cnt ? cnt.textContent : '',
+                    empty: box && box.querySelector('.empty') ? box.querySelector('.empty').textContent.trim() : ''};
+        })()""") or {}
+        check("我的预设区块在位",
+              "!!(document.getElementById('userPresets') && document.getElementById('btnSavePreset'))",
+              "容器 + 存当前参数按钮", lambda v: v is True)
+        print("   我的预设：计数=%s 空态提示=%s" % (mine.get("count"), (mine.get("empty") or "")[:20]))
+
+        tmp_name = "ui_check_tmp"
+        cdp.js("window.prompt = () => %s; window.confirm = () => true;" % json.dumps(tmp_name, ensure_ascii=False))
+        cdp.js("document.getElementById('btnSavePreset').click()")
+        saved = False
+        for _ in range(20):                       # 最多等 10s
+            if cdp.js("!!document.querySelector('#userPresets button[data-key=\"%s\"]')" % tmp_name):
+                saved = True
+                break
+            time.sleep(0.5)
+        cnt_after = cdp.js("document.querySelectorAll('#userPresets button').length")
+        checks.append({"item": "保存预设后按钮出现", "expect": "我的预设下多 1 个按钮",
+                       "actual": cnt_after, "ok": saved})
+        print("%s %-28s 按钮总数=%s"
+              % ("[PASS]" if saved else "[FAIL]", "保存预设后按钮出现", cnt_after))
+
+        # 套用一次，确认不报错且参数面板仍在（套用走 S.values 整体替换）
+        if saved:
+            cdp.js("document.querySelector('#userPresets button[data-key=\"%s\"]').click()" % tmp_name)
+            time.sleep(0.8)
+        rows_after_apply = cdp.js("document.querySelectorAll('#paramPanel .prow').length")
+        check("套用我的预设后面板完整", "document.querySelectorAll('#paramPanel .prow').length",
+              ">=5", lambda v: isinstance(v, int) and v >= 5)
+
+        # 清理：点按钮上的删除叉，走的是用户真实路径（confirm 已被改成恒真），
+        # 顺便验证 deleteUserPreset 会刷新列表——只发 fetch 不刷 UI 是查不出问题的
+        cdp.js("""(function(){const b=document.querySelector('#userPresets button[data-key=\"%s\"]');
+            if(b){const d=b.querySelector('.del'); if(d) d.click();}})()""" % tmp_name)
+        gone = False
+        for _ in range(20):
+            if not cdp.js("!!document.querySelector('#userPresets button[data-key=\"%s\"]')" % tmp_name):
+                gone = True
+                break
+            time.sleep(0.5)
+        checks.append({"item": "删除预设后按钮消失", "expect": "测试预设已清理",
+                       "actual": gone, "ok": gone})
+        print("%s %-28s 已清理=%s"
+              % ("[PASS]" if gone else "[FAIL]", "删除预设后按钮消失", gone))
+
+        # ---------- 批量队列（0.12.0）：多张图不再被静默丢掉 ----------
+        tmp_dir = SKILL_ROOT / "temp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        img_b = tmp_dir / "ui_batch_b.png"
+        img_b.write_bytes(Path(src_img).read_bytes())
+        cdp.set_files("#fileInput", [str(src_img), str(img_b)])
+        st = {}
+        batch_ok = False
+        for _ in range(20):                       # 最多等 10s
+            st = cdp.js("""(function(){const b=document.getElementById('btnBatch');
+                return {dis:b.disabled, txt:b.textContent,
+                        hint:(document.getElementById('batchHint')||{}).textContent||''};})()""") or {}
+            if st.get("dis") is False:
+                batch_ok = True
+                break
+            time.sleep(0.5)
+        checks.append({"item": "多选后批量按钮解锁", "expect": "disabled=False 且文案含张数",
+                       "actual": st.get("txt"), "ok": bool(batch_ok and "2" in (st.get("txt") or ""))})
+        print("%s %-28s 文案=%s 提示=%s"
+              % ("[PASS]" if checks[-1]["ok"] else "[FAIL]", "多选后批量按钮解锁",
+                 st.get("txt"), (st.get("hint") or "")[:24]))
+
+        # 真导一次：前端 FormData 字段（files / payload）与后端契约最容易对不上，
+        # 只看按钮解锁是查不出来的，必须看到后端逐项回执渲染成"成功 2 / 2"
+        cdp.js("document.getElementById('btnBatch').click()")
+        b_exp = False
+        for _ in range(60):                       # 最多等 60s（两次 upload+export）
+            if cdp.js("((document.getElementById('exportResult')||{}).textContent||'').indexOf('批量导出：成功') >= 0"):
+                b_exp = True
+                break
+            time.sleep(1)
+        det = cdp.js("""(function(){const t=(document.getElementById('exportResult')||{}).textContent||'';
+            const m=t.match(/批量导出：成功\\s*(\\d+)\\s*\\/\\s*(\\d+)/);
+            return {head:t.slice(0,60), m:m?[m[1],m[2]]:null};})()""") or {}
+        ok_n = (det.get("m") or [None, None])[0]
+        tt_n = (det.get("m") or [None, None])[1]
+        checks.append({"item": "批量导出真跑通", "expect": "成功 2 / 2",
+                       "actual": det.get("head"), "ok": bool(b_exp and ok_n == "2" and tt_n == "2")})
+        print("%s %-28s %s"
+              % ("[PASS]" if checks[-1]["ok"] else "[FAIL]", "批量导出真跑通", det.get("head")))
+
+        # 单张仍要回到常规流程（否则单图用户会卡在批量模式里）
+        cdp.set_files("#fileInput", [str(src_img)])
+        single_ok = False
+        for _ in range(30):
+            if cdp.js("document.getElementById('btnBatch').disabled") is True and \
+               cdp.js("document.getElementById('btnPreflight').disabled") is False:
+                single_ok = True
+                break
+            time.sleep(0.5)
+        checks.append({"item": "单张回到常规流程", "expect": "批量按钮锁定且自检可用",
+                       "actual": single_ok, "ok": single_ok})
+        print("%s %-28s 单张回收=True"
+              % ("[PASS]" if single_ok else "[FAIL]", "单张回到常规流程"))
+
         s3 = REPORT_DIR / "ui_report_card.png"
         # 报告卡在页面下方，先滚进视口再截，否则截到的是顶部空白
         cdp.js("document.getElementById('exportResult').scrollIntoView({block:'center'})")

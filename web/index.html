@@ -31,11 +31,12 @@
       <div class="pane-title">素材</div>
 
       <div id="dropzone" class="dropzone">
-        <input type="file" id="fileInput" accept="image/*" hidden />
+        <input type="file" id="fileInput" accept="image/*" multiple hidden />
         <div class="dz-icon"></div>
         <p class="dz-main">拖入图片，或点击选择</p>
-        <p class="dz-sub">png / jpg / webp / bmp / tif</p>
+        <p class="dz-sub">png / jpg / webp / bmp / tif · 可一次拖入多张做批量</p>
       </div>
+      <p class="sub-hint" id="batchHint" style="margin:6px 0 10px"></p>
 
       <!-- 纯色模式：手里只有色卡、没有法线图时的正确入口。
            微结构由程序化噪声按物理尺度生成，不依赖任何上传图。 -->
@@ -127,6 +128,13 @@
 
       <div class="presets" id="presets"></div>
 
+      <!-- 我的预设（0.12.0）：内置 33 个是作者调的，用户自己那套参数要能存下来复用 -->
+      <div class="mine-head">
+        <span>我的预设 <b id="mineCount">0</b></span>
+        <button type="button" class="btn tiny" id="btnSavePreset">存当前参数</button>
+      </div>
+      <div class="presets" id="userPresets"></div>
+
       <div id="paramPanel" class="panel"></div>
 
       <div class="field">
@@ -143,6 +151,7 @@
       <div class="export-box">
         <button type="button" class="btn ghost" id="btnPreflight" disabled>导出前自检</button>
         <button type="button" class="btn primary" id="btnExport" disabled>导出 MaxScript (.ms)</button>
+        <button type="button" class="btn" id="btnBatch" disabled>批量导出（多张图 → 多套材质）</button>
         <div class="export-result" id="exportResult"></div>
       </div>
     </section>
@@ -151,6 +160,6 @@
   <div class="toast" id="toast"></div>
 </div>
 
-<script type="module" src="./app.js?v=7"></script>
+<script type="module" src="./app.js?v=8"></script>
 </body>
 </html>

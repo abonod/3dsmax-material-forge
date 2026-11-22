@@ -209,6 +209,22 @@ input[type=range]::-webkit-slider-thumb {
 }
 .presets button:hover { border-color: var(--accent2); color: var(--accent2); }
 
+/* 我的预设（0.12.0）：标题行右侧挂「存当前参数」 */
+.mine-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 2px 0 7px; padding-top: 8px; border-top: 1px dashed var(--line);
+  font-size: 11.5px; color: var(--text-dim);
+}
+.mine-head b { color: var(--accent2); font-weight: 600; }
+/* 用户预设带删除叉：按钮内 span 不参与点击套用 */
+#userPresets button { position: relative; padding-right: 20px; }
+#userPresets button .del {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; opacity: .55; padding: 0 2px;
+}
+#userPresets button .del:hover { opacity: 1; color: #ff6b6b; }
+#userPresets .empty { font-size: 11px; color: var(--text-dim); opacity: .7; }
+
 .panel .group { margin-bottom: 14px; }
 .panel .group > h3 {
   font-size: 11px; color: var(--text-dim); font-weight: 600;

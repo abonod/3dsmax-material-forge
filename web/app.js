@@ -29,6 +29,10 @@ const S = {
   lastReport: null,
   // 目标渲染器：vray / corona。只影响导出脚本形态与参数翻译，预览球两种都能看
   renderer: "vray",
+  // 批量队列（0.12.0）：一次拖入多张图时不再吞掉后面的，全部排队等「批量导出」
+  batchFiles: [],
+  // 我的预设（0.12.0）：后端返回 {名字: {参数: 值}}，与内置 preset_full 结构一致
+  userPresets: {},
 };
 
 const ROUGH_MAP = { matte: 0.85, semi: 0.55, glossy: 0.28, mirror: 0.06 };
@@ -1141,16 +1145,50 @@ const fileInput = $("fileInput");
 
 dropzone.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
-  if (fileInput.files[0]) handleUpload(fileInput.files[0]);
+  const fs = Array.from(fileInput.files || []);
+  if (fs.length) pickFiles(fs);
+  fileInput.value = "";     // 允许重复选同一批文件（批量导第二批时常用）
 });
 ["dragenter", "dragover"].forEach((ev) =>
   dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("over"); }));
 ["dragleave", "drop"].forEach((ev) =>
   dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("over"); }));
 dropzone.addEventListener("drop", (e) => {
-  const f = e.dataTransfer.files[0];
-  if (f) handleUpload(f);
+  const fs = Array.from(e.dataTransfer.files || []);
+  if (fs.length) pickFiles(fs);
 });
+
+/* 一张 = 常规单材质流程；多张 = 进批量队列。
+   旧版只认 files[0]，一次拖 20 张会静默丢掉 19 张，是批量需求最直接的痛点。 */
+function pickFiles(files) {
+  const imgs = files.filter((f) =>
+    /^image\//.test(f.type || "") || /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(f.name || ""));
+  if (!imgs.length) { toast("这些文件里没有可用的图片", true); return; }
+  if (imgs.length === 1) {
+    S.batchFiles = [];
+    syncBatchUI();
+    handleUpload(imgs[0]);
+    return;
+  }
+  S.batchFiles = imgs;
+  syncBatchUI();
+  dropzone.querySelector(".dz-main").textContent = `已选 ${imgs.length} 张（批量模式）`;
+  dropzone.querySelector(".dz-sub").textContent = "点右栏「批量导出」开始；只想单张请一次只拖一张";
+  toast(`已选 ${imgs.length} 张，可一次导出 ${imgs.length} 套材质`);
+}
+
+function syncBatchUI() {
+  const n = (S.batchFiles || []).length;
+  const btn = $("btnBatch");
+  const hint = $("batchHint");
+  if (btn) {
+    btn.disabled = n === 0;
+    btn.textContent = n
+      ? `批量导出 ${n} 套材质（${S.renderer === "corona" ? "Corona" : "V-Ray"}）`
+      : "批量导出（多张图 → 多套材质）";
+  }
+  if (hint) hint.textContent = n ? `${n} 张排队中：参数取右栏当前面板，材质名沿用各自文件名` : "";
+}
 
 async function handleUpload(file) {
   dropzone.querySelector(".dz-main").textContent = "解析中...";
@@ -1413,6 +1451,7 @@ function setRenderer(r) {
   // 已导出的旧结果不再代表当前目标，清掉避免误读
   const box = $("exportResult");
   if (box) box.innerHTML = "";
+  syncBatchUI();     // 批量按钮文案里带渲染器名，切换后要同步
 }
 
 $("rendererSeg").addEventListener("click", (e) => {
@@ -1421,6 +1460,167 @@ $("rendererSeg").addEventListener("click", (e) => {
   setRenderer(b.dataset.renderer);
   toast(S.renderer === "corona" ? "导出目标：Corona" : "导出目标：V-Ray");
 });
+
+/* ==================================================================
+ * 批量导出（0.12.0）
+ *
+ * 场景：手上 20 张木纹，一张张拖、一张张导出要点 40 次。这里一次全传，
+ * 后端逐张 upload→export，共用当前面板参数与渲染器，材质名沿用文件名。
+ * 单项失败不中断整批（后端逐项回执），所以结果必须逐条展示而不是一句"成功"。
+ * ================================================================== */
+function showBatch(d) {
+  const box = $("exportResult");
+  const items = d.items || [];
+  const bad = d.fail_count || 0;
+  const rows = items.map((x) => x.ok
+    ? `<div class="line"><b>${x.name}${x.selfcheck_ok === false ? "（有告警）" : ""}</b><span>${x.ms_path || ""}</span></div>`
+    : `<div class="line"><b style="color:#ff6b6b">${x.file}</b><span>失败：${x.error || "未知原因"}</span></div>`
+  ).join("");
+  const firstDir = (items.find((x) => x.ok && x.dir) || {}).dir || "";
+  box.innerHTML =
+    `<div class="${bad ? "bad" : "ok"}">批量导出：成功 ${d.ok_count} / ${d.total}${bad ? `，失败 ${bad}` : ""}</div>` +
+    rows +
+    (firstDir
+      ? `<button class="btn ghost" onclick="openDir('${firstDir.replace(/\\/g, "\\\\")}')">打开输出目录</button>`
+      : "") +
+    `<div class="tip">每套材质独占一个子目录（.ms + textures/），整目录拷到 Max 机器即可用；<br />` +
+    `参数取当前面板（含通道勾选与目标渲染器），想逐张不同参数请单张导出。</div>`;
+}
+
+$("btnBatch").addEventListener("click", async () => {
+  const files = S.batchFiles || [];
+  if (!files.length) return;
+  const btn = $("btnBatch");
+  const keep = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = `批量导出中…（${files.length} 张，请稍候）`;
+  try {
+    const fd = new FormData();
+    for (const f of files) fd.append("files", f, f.name);
+    fd.append("payload", JSON.stringify(payloadBody()));
+    // FormData 交给浏览器自己带 boundary，这里绝不能手写 Content-Type
+    const data = await api("/api/batch_export", { method: "POST", body: fd });
+    showBatch(data);
+    toast(`批量导出完成：成功 ${data.ok_count} / ${data.total}`);
+  } catch (e) {
+    toast("批量导出失败：" + e.message, true);
+  } finally {
+    btn.textContent = keep;
+    syncBatchUI();
+  }
+});
+
+/* ==================================================================
+ * 我的预设（0.12.0）
+ *
+ * 内置 33 个是作者调的参数组合；用户自己调顺手的那套（比如"这个客户的灰泥"）
+ * 之前无处安放，关掉页面就没了。存在后端用户目录（~/.3dsmax_material_forge），
+ * 不写 localStorage：预设是资产，换浏览器、重装前端都不该丢。
+ * 只存参数表里的键：base_color 跟着当前色板走，tex_enabled 属于会话状态，
+ * 后端也会再过滤一遍（双保险）。
+ * ================================================================== */
+async function refreshUserPresets() {
+  try {
+    const d = await api("/api/presets/user");
+    S.userPresets = d.presets || {};
+    S.userPresetMax = d.max || 40;
+  } catch (e) {
+    S.userPresets = S.userPresets || {};    // 服务不在线时保留上一次的，不清空成空壳
+  }
+  renderUserPresets();
+}
+
+function renderUserPresets() {
+  const box = $("userPresets");
+  if (!box) return;
+  const names = Object.keys(S.userPresets || {});
+  const cnt = $("mineCount");
+  if (cnt) cnt.textContent = String(names.length);
+  box.innerHTML = "";
+  if (!names.length) {
+    const tip = document.createElement("span");
+    tip.className = "empty";
+    tip.textContent = "调好参数点「存当前参数」，下次一键套用";
+    box.appendChild(tip);
+    return;
+  }
+  for (const name of names) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.key = name;
+    b.textContent = name;
+    b.title = "套用我保存的预设（覆盖全部参数）";
+    b.addEventListener("click", (ev) => {
+      if (ev.target.classList.contains("del")) return;
+      applyUserPreset(name);
+    });
+    const del = document.createElement("span");
+    del.className = "del";
+    del.textContent = "×";
+    del.title = "删除该预设";
+    del.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      deleteUserPreset(name);
+    });
+    b.appendChild(del);
+    box.appendChild(b);
+  }
+}
+
+function applyUserPreset(name) {
+  const vals = (S.userPresets || {})[name];
+  if (!vals) return;
+  S.values = { ...S.defaults, ...vals, base_color: S.values.base_color || "#ffffff" };
+  S.presetKey = null;
+  renderPanel();
+  syncColorUI(null);
+  updateMaterial();
+  document.querySelectorAll("#presets button").forEach((x) => x.classList.remove("active"));
+  document.querySelectorAll("#userPresets button").forEach((x) => x.classList.remove("active"));
+  const me = document.querySelector(`#userPresets button[data-key="${name}"]`);
+  if (me) me.classList.add("active");
+  scheduleSave();
+  toast(`已套用我的预设：${name}`);
+}
+
+async function saveUserPreset() {
+  const def = ($("matName").value || "").trim() || "我的预设";
+  const name = window.prompt("给这套参数起个名字（中英文/数字/空格/下划线，最多 24 字）", def);
+  if (name === null) return;
+  const key = name.trim();
+  if (!key) { toast("名字不能为空", true); return; }
+  const values = {};
+  for (const [k, v] of Object.entries(S.values || {})) {
+    if (k === "tex_enabled") continue;    // 勾选状态不进预设（后端也会过滤）
+    values[k] = v;
+  }
+  try {
+    const d = await api("/api/presets/user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, values }),
+    });
+    S.userPresets = d.presets || {};
+    renderUserPresets();
+    toast(`已保存预设「${key}」（${d.count} 项参数）`);
+  } catch (e) {
+    toast("保存预设失败：" + e.message, true);
+  }
+}
+
+async function deleteUserPreset(name) {
+  if (!window.confirm(`删除预设「${name}」？该操作不可撤销。`)) return;
+  try {
+    const d = await api("/api/presets/user/" + encodeURIComponent(name), { method: "DELETE" });
+    S.userPresets = d.presets || {};
+    renderUserPresets();
+    toast(`已删除预设「${name}」`);
+  } catch (e) {
+    toast("删除预设失败：" + e.message, true);
+  }
+}
+
+$("btnSavePreset").addEventListener("click", saveUserPreset);
 
 $("btnPreflight").addEventListener("click", async () => {
   if (!S.jobId) return;
@@ -1567,6 +1767,7 @@ window.openDir = async (p) => {
     const saved = restoreSavedState(readSavedState());
     renderQuickColors();
     renderPresets();
+    refreshUserPresets();     // 我的预设：失败不阻塞启动，只留空列表
     setMode(S.mode);
     ensureMaterial();
     // 恢复顺序：先灯光（重建环境贴图），再形状（applyShape 依赖 material 已存在）

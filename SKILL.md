@@ -60,6 +60,8 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 2. **挑个预设 + 改两个值** —— 默认「新手档」只露 5 项：基础色、金属模式、粗糙档位、法线强度、UV 平铺。挑一个最像的预设（33 个，按 7 个族群分两轴翻：金属 / 石材陶瓷 / 木作 / 织物皮革 / 玻璃亚克力 / 涂料墙面 / 特殊材质），然后只用改「基础色」和「粗糙档位」。想细调就展开底部的「进阶」折叠区，那里是其余 35 项，可以完全不管。
 3. **点「导出前自检」再导出** —— 自检会把「贴图缺失 / 脚本语法 / 编码 / 非法材质名」一次查完，出绿色「自检通过，可以导出」再点导出；红色就是有阻断项，报告卡上会写是哪一项、怎么改。
 
+多张图要出多套材质时，左栏可以一次多选或多拖：多张进队列，右栏出现「批量导出 N 套材质」按钮，一点全出（参数共用当前面板、材质名沿用文件名、每套独占子目录）。参数调顺手想留着，点「存当前参数」进「我的预设」，下次一点套回整套面板；预设与内置同名会被拒（中英文都算）。
+
 导出得到两个东西：`.ms` 脚本 + `textures/` 文件夹。两者是**绑定**的——`.ms` 用相对路径找贴图，所以整个 `export/` 目录连同 `textures/` 一起搬走，别只拿 `.ms`。
 
 **在 Max 里怎么用**：`Scripting > Run Script` 选那个 `.ms`。不用先建材质球——脚本会把材质自动放进材质编辑器 1 号位，并且**如果运行前选中了物体，会直接赋给选中物体**。想要更省事：先选中物体再 Run Script，一步到位。
@@ -77,10 +79,23 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 | 导出 | `POST /api/export`（带参数 dict） | `ms_path`、`script_url`、`texture_dir`、`products` |
 | 可选 AI 增强 | `POST /api/ai_enhance` | `available`、`provider` |
 | 导出前自检 | `POST /api/preflight`（带参数 dict） | `ok`、`blocking`、`warnings`、`items[]`、`env` |
+| 批量导出（0.12.0） | `POST /api/batch_export`（multipart，字段 `files` 多份 + `payload` JSON） | `ok_count`、`fail_count`、`items[]`（逐项 `ok` / `ms_path` / `dir` / `error`） |
+| 我的预设·读 | `GET /api/presets/user` | `presets{}`、`count`、`max` |
+| 我的预设·存/删 | `POST /api/presets/user`（`{key, values}`）、`DELETE /api/presets/user/{name}` | `presets{}`、`count` |
 
 另有 `GET /api/schema` 拿全部参数定义与 AI provider 列表、`GET /api/health` 探活、`POST /api/open_dir` 打开输出目录、`GET /files/{job_id}/{path}` 取静态文件。环境信息（Max 版本 / V-Ray 路径）只随 `POST /api/preflight` 的 `env` 字段返回，没有单独的环境接口。
 
 批量场景下先 `GET /api/schema` 读参数注册表，再按 `Param.id` 组 dict 提交，比猜字段名可靠得多。**批量一定要先打 `POST /api/preflight`**：脚本层错误（括号、`#` 字面量、GBK 不可编码）在批量里会被放大成整批失败，且启用了无 V-Ray 的机器还会顺便拿到降级提示。
+
+#### 批量导出与「我的预设」（0.12.0）
+
+二十张木纹要二十套材质时，不要循环调 20 次 `/api/export`，用 `/api/batch_export` 一次多传：后端逐张复用 `upload → export` 同一条链路，共用 `payload` 里的参数与 `renderer`，材质名沿用各文件名，每套独占一个子目录。三个要点：
+
+- **上限 20 张**，超了返回 413。这是防误拖整个素材盘，不是性能限制。
+- **单项失败不中断整批**，回执逐项给 `ok` / `error`。所以调用方必须逐条展示，别只读 `ok_count` 就报"成功"。
+- **每项必须开新的 memory stream**。同一 `UploadFile` 流复用会让第二张起读到空字节，报"空文件"——这是 0.12.0 首测踩到的坑。
+
+`values` 里的 `base_color` 跟着色板走、`tex_enabled` 属于会话状态，两者都不进预设（前后端各过滤一遍）。预设落盘在 `~/.3dsmax_material_forge/user_presets.json`，**不放 localStorage**：预设是用户的资产，换浏览器、重装前端都不该丢；localStorage 只用来存面板会话状态。
 
 ### 路径 C：改代码 / 排错 / 扩展
 
@@ -112,7 +127,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 ├── scripts/
 │   ├── verify_ms.py             .ms 静态体检
 │   ├── regen_legacy.py          历史产物批量重导出 / 坏写法修复（默认 dry-run）
-│   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，20 项断言）
+│   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，22 项断言）
 │   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 65 项与档位一致性
 │   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
 │   ├── run_all_checks.py        统一检查入口（15 项串跑，--fast 跳过 Edge 截图）

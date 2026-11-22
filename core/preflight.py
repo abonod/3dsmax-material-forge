@@ -150,7 +150,15 @@ def probe_vray() -> dict:
 # .ms 静态语法校验（与 scripts/verify_ms.py 同规则，导出路径内联一份避免跨目录依赖）
 # ------------------------------------------------------------------
 def _mask_strings(src: str) -> str:
-    """把字符串字面量内容抹成空格，避免内容里的括号/引号干扰结构校验"""
+    """把字符串字面量内容与注释都抹成空格，只留结构字符，行列位置保持不变。
+
+    0.12.1 修：原实现只抹字符串、不剥注释，于是注释里写「2) 类名文本…」这类
+    条款编号时，那个 ")" 会被当成多余的右括号——Corona 模板的解析段注释正好
+    这么写，结果**所有 Corona 导出**都在 preflight 被判「括号不平衡」当场拦掉，
+    报的还是模板里的行号，看起来像脚本坏了，实际是校验器把注释当代码。
+    scripts/verify_ms.py 一直剥注释，两套判据从内联那天起就已漂移；这里补齐，
+    与 verify_ms.strip_noise 语义等价（差别只在这里保留空格以维持列号）。
+    """
     out = []
     i, n = 0, len(src)
     while i < n:
@@ -168,10 +176,7 @@ def _mask_strings(src: str) -> str:
                     out.append(" ")
                     i += 1
                     break
-                if src[i] == "\n":
-                    out.append("\n")
-                else:
-                    out.append(" ")
+                out.append("\n" if src[i] == "\n" else " ")
                 i += 1
             continue
         if c == '"':
@@ -186,10 +191,23 @@ def _mask_strings(src: str) -> str:
                     out.append(" ")
                     i += 1
                     break
-                if src[i] == "\n":
-                    out.append("\n")
-                else:
-                    out.append(" ")
+                out.append("\n" if src[i] == "\n" else " ")
+                i += 1
+            continue
+        # -- 行注释：抹到行尾，换行本身保留（否则后续行号全歪）
+        if c == "-" and src.startswith("--", i):
+            while i < n and src[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        # /* */ 块注释：同样只抹字符，保换行
+        if c == "/" and src.startswith("/*", i):
+            while i < n:
+                if src[i] == "*" and i + 1 < n and src[i + 1] == "/":
+                    out.append("  ")
+                    i += 2
+                    break
+                out.append("\n" if src[i] == "\n" else " ")
                 i += 1
             continue
         out.append(c)
