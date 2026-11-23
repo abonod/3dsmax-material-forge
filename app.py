@@ -428,13 +428,15 @@ async def run_ai_enhance(payload: dict):
         raise HTTPException(404, "任务不存在")
 
     jd = _job_dir(job_id)
+    want = payload.get("provider", "auto")
     res, used = ai_enhance.enhance(
         job["source"], str(jd / "textures_ai"),
-        provider=payload.get("provider", "auto"),
+        provider=want,
     )
     if not res:
-        return {"available": False, "provider": "none",
-                "message": "未配置 AI 服务或调用失败，已使用本地程序化贴图"}
+        why = ai_enhance.explain(want)
+        return {"available": False, "provider": "none", "reason": why,
+                "message": f"未启用 AI 增强，已使用本地程序化贴图。原因：{why}"}
 
     # 合并：AI 优先，缺失通道保留本地结果
     merged = dict(job["textures"])

@@ -25,16 +25,23 @@ C3  同一段文案必须提到 [FALLBACK] 或「近似」，否则用户不知�
 C4  SKILL.md 的降级说明与 C1 一致（不得再写「不写入任何参数与贴图」）
 C5  真实生成物冒烟：V-Ray / Corona 两份 .ms 里同时含有降级文案与 FALLBACK 段
     （防「模板里改对了、拼装顺序把它丢掉了」）
+C7  AI 增强 provider 的「可用性声明」与 enhance() 实现同向：enhance 是空实现（只
+    return None / 只有 TODO）的 provider，available() 不得靠环境变量返回 True——
+    否则用户配了 Key 看到「可用」，调用却静默回落（0.12.0 真实存在过：ScenarioProvider
+    看 SCENARIO_API_KEY 却说可用了两个版本）。空实现还必须给出非空 reason，
+    否则回落时用户只能猜「是不是 Key 配错了」。反向也拦：有真实现却恒声明不可用。
 
 反例自测（--selftest）
 ----
-6 个反例，任一未被判 FAIL 即整体失败退出：
+8 个反例，任一未被判 FAIL 即整体失败退出：
   N1 文案写回「不写入任何参数/贴图」        -> C2 必须报错
   N2 删掉 FALLBACK 全部 mfSetOn mtl 写入     -> C1 必须报错
   N3 文案去掉 [FALLBACK] / 近似 字样         -> C3 必须报错
   N4 SKILL.md 写回「不写入任何参数与贴图」  -> C4 必须报错
   N5 拼装顺序里剔除 FALLBACK 段              -> C5 必须报错
   N6 文案改成提到「近似」但同时说「不写贴图」 -> C2 必须报错（混合口径也算矛盾）
+  N7 ScenarioProvider.available 改回看环境变量 -> C7 必须报错
+  N8 删掉空实现 provider 的 reason            -> C7 必须报错
 
 用法
 ----
@@ -44,6 +51,7 @@ C5  真实生成物冒烟：V-Ray / Corona 两份 .ms 里同时含有降级文�
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import shutil
 import sys
@@ -71,6 +79,7 @@ TARGETS = {
 }
 COMMON = ROOT / "core" / "exporters" / "tpl_common.py"
 SKILL = ROOT / "SKILL.md"
+AI = ROOT / "core" / "ai_enhance.py"
 
 
 def _warn_block(text: str) -> str:
@@ -83,6 +92,34 @@ def _warn_block(text: str) -> str:
         if ("降级" in s) or ("裸材质" in s) or ("空材质球" in s) or ("不等价" in s):
             out.append(s)
     return "\n".join(out)
+
+
+def _is_stub(fn: ast.AST) -> bool:
+    """方法体是否只有 docstring / pass / return None（= 没接线）。"""
+    body = list(fn.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(
+            getattr(body[0], "value", None), ast.Constant
+    ) and isinstance(body[0].value.value, str):
+        body = body[1:]
+    for n in body:
+        if isinstance(n, ast.Pass):
+            continue
+        if isinstance(n, ast.Return):
+            v = n.value
+            if v is None or (isinstance(v, ast.Constant) and v.value is None):
+                continue
+            return False
+        return False
+    return True
+
+
+def _always_false(fn: ast.AST) -> bool:
+    body = [n for n in fn.body if not isinstance(n, ast.Pass)]
+    body = [n for n in body if not (isinstance(n, ast.Expr)
+                                    and isinstance(getattr(n, "value", None), ast.Constant)
+                                    and isinstance(n.value.value, str))]
+    return (len(body) == 1 and isinstance(body[0], ast.Return)
+            and isinstance(body[0].value, ast.Constant) and body[0].value.value is False)
 
 
 def check(roots: dict) -> list[str]:
@@ -165,6 +202,52 @@ def check(roots: dict) -> list[str]:
     except Exception as exc:  # noqa: BLE001
         probs.append(f"C6 生成物冒烟失败: {exc!r}")
 
+    # C7 AI 增强 provider：available() 的声明必须与 enhance() 的实现同向。
+    # 这类坑和降级文案是同一族病——说得出来的事和代码做过的事对不上，
+    # 只不过一个在日志文案里说谎，一个在「可用性」字段里说谎。
+    ai_p = roots.get("ai")
+    if ai_p is None or not ai_p.exists():
+        probs.append("C7 core/ai_enhance.py 缺失（AI 增强端口被删，判据需同步）")
+    else:
+        try:
+            tree = ast.parse(ai_p.read_text(encoding="utf-8", errors="ignore"))
+        except SyntaxError as exc:
+            probs.append(f"C7 core/ai_enhance.py 语法错误，无法静态审查: {exc}")
+            tree = None
+        if tree is not None:
+            seen = 0
+            for cls in [n for n in tree.body if isinstance(n, ast.ClassDef)]:
+                if not cls.name.endswith("Provider") or cls.name == "BaseProvider":
+                    continue
+                seen += 1
+                fns = {f.name: f for f in cls.body
+                       if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                enh, avail = fns.get("enhance"), fns.get("available")
+                stub = enh is None or _is_stub(enh)
+                reason = ""
+                for st in cls.body:
+                    if isinstance(st, ast.Assign) and any(
+                            isinstance(t, ast.Name) and t.id == "reason" for t in st.targets):
+                        if isinstance(st.value, ast.Constant) and isinstance(st.value.value, str):
+                            reason = st.value.value.strip()
+                env_wired = bool(avail) and bool(
+                    re.search(r"\b(environ|getenv|requires_key)\b", ast.dump(avail)))
+                if stub and env_wired:
+                    probs.append(
+                        f"C7 {cls.name}.enhance() 是空实现（只 return None / 只有 TODO），"
+                        "available() 却按环境变量宣称可用——用户配好 Key 看到「可用」，"
+                        "调用却静默回落")
+                if stub and not reason:
+                    probs.append(
+                        f"C7 {cls.name}.enhance() 是空实现却没有为非空 reason，"
+                        "回落时用户只能猜是不是 Key 配错了")
+                if (not stub) and avail is not None and _always_false(avail):
+                    probs.append(
+                        f"C7 {cls.name}.enhance() 有真实实现，available() 却恒返回 False："
+                        "做好的能力被声明成不可用，等同另一种口径不一致")
+            if not seen:
+                probs.append("C7 core/ai_enhance.py 里找不到任何 provider 类（判据需同步）")
+
     return probs
 
 
@@ -177,6 +260,7 @@ def _roots(base: Path) -> dict:
         },
         "exporter": base / "core" / "exporters" / "ms_exporter.py",
         "skill": base / "SKILL.md",
+        "ai": base / "core" / "ai_enhance.py",
     }
 
 
@@ -184,7 +268,7 @@ def _stage(tmp: Path) -> Path:
     """把被检查的文件复制到临时目录，反例在副本上改，绝不碰真实文件"""
     for rel in ("core/exporters/tpl_common.py", "core/exporters/tpl_vray.py",
                 "core/exporters/tpl_corona.py", "core/exporters/ms_exporter.py",
-                "SKILL.md"):
+                "core/ai_enhance.py", "SKILL.md"):
         dst = tmp / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, dst)
@@ -206,6 +290,10 @@ def selftest() -> int:
         ("N4", "SKILL.md 写回旧口径", "patch_skill", ""),
         ("N5", "拼装顺序丢失 FALLBACK 段", "patch_text", "core/exporters/ms_exporter.py|    + _TPL_FALLBACK|"),
         ("N6", "混合口径：提近似又说没写贴图", "patch_text", "core/exporters/tpl_corona.py|近似重写|近似重写（不写入任何参数/贴图）"),
+        ("N7", "空实现 provider 按环境变量宣称可用", "patch_text",
+         "core/ai_enhance.py|        return False  # 未接入：不因环境变量存在就宣称可用|        return bool(os.environ.get(\"SCENARIO_API_KEY\"))"),
+        ("N8", "空实现 provider 没有回落原因", "patch_text",
+         "core/ai_enhance.py|    reason = \"预留位：endpoint 与认证头尚未接入，配置 SCENARIO_API_KEY 也不会生效；当前请用 generic-http 或本地程序化推导\"|"),
     ]
     failed = 0
     for key, desc, kind, arg in cases:
@@ -258,8 +346,8 @@ def selftest() -> int:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="降级文案与实现一致性检查")
-    ap.add_argument("--selftest", action="store_true", help="跑 6 个反例，验证判据有判别力")
+    ap = argparse.ArgumentParser(description="声明与实现一致性检查（降级文案 + AI provider 可用性）")
+    ap.add_argument("--selftest", action="store_true", help="跑 8 个反例，验证判据有判别力")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -267,15 +355,20 @@ def main(argv=None) -> int:
 
     probs = check(_roots(ROOT))
     if probs:
-        print("降级文案一致性检查：FAIL")
+        print("声明-实现一致性检查：FAIL")
         for p in probs:
             print(f"  [FAIL] {p}")
         return 1
     n = len(re.findall(r"mfSetOn\s+mtl\s",
                        re.search(r'FALLBACK\s*=\s*r?"""(.*?)"""',
                                  COMMON.read_text(encoding="utf-8"), re.S).group(1)))
-    print(f"降级文案一致性检查：V-Ray / Corona 两侧文案与 FALLBACK 实现一致（写入点 {n} 处）")
-    print(f"汇总：{len(TARGETS)} 个渲染器文案 + SKILL.md + 生成物冒烟，ALL PASS")
+    print(f"声明-实现一致性检查：V-Ray / Corona 两侧降级文案与 FALLBACK 实现一致（写入点 {n} 处）")
+    print("声明-实现一致性检查：AI provider 的 available() 与 enhance() 实现同向，空实现均带 reason")
+    n_prov = len([c for c in ast.parse(
+        AI.read_text(encoding="utf-8", errors="ignore")).body
+        if isinstance(c, ast.ClassDef) and c.name.endswith("Provider")
+        and c.name != "BaseProvider"])
+    print(f"汇总：{len(TARGETS)} 个渲染器文案 + SKILL.md + 生成物冒烟 + {n_prov} 个 AI provider，ALL PASS")
     return 0
 
 

@@ -57,8 +57,8 @@ CHECKS = [
     # 降级文案 vs 降级实现：这条漂过两次且方向相反（先「尽量映射」实际不写、
     # 后「不写任何参数」实际已重写），两处相隔 500 行分属不同文件，人工读不出来。
     # 正例盯现行一致性，反例证明判据有判别力（任一反例不被抓住即整体失败）。
-    ("fallback_claim", "降级文案一致性",        ["scripts/fallback_claim_check.py"], False),
-    ("fallback_neg",   "降级文案判据反例自测",  ["scripts/fallback_claim_check.py", "--selftest"], False),
+    ("fallback_claim", "声明-实现一致性",        ["scripts/fallback_claim_check.py"], False),
+    ("fallback_neg",   "声明-实现一致性反例",  ["scripts/fallback_claim_check.py", "--selftest"], False),
     ("ui",            "主界面结构",            ["scripts/ui_check.py"],          True),
     ("ui_solid",      "纯色模式像素",          ["scripts/ui_solid_check.py"],    True),
 ]

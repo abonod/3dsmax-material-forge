@@ -138,7 +138,7 @@ python app.py
 
 - 新增 V-Ray 参数：`core/params.py` 加一条 `Param` 定义即可自动出现在面板上。
 - 新增属性名别名：`core/exporters/ms_exporter.py` 的 `PROP_ALIASES` 与模板内 `case` 各加一行。
-- AI 增强：`core/ai_enhance.py` 实现 `BaseProvider` 子类即可接入在线模型。
+- AI 增强：`core/ai_enhance.py` 实现 `BaseProvider` 子类即可接入在线模型。约定两条：① `available()` 只在 `enhance()` 真能跑通时返回 True，别拿「环境变量存在」当可用（`scenario` 就是预留位，配了 Key 也不生效）；② 未实现的 provider 必须写非空 `reason`，回落时接口会把它原文回给用户。这两条由 `scripts/fallback_claim_check.py` 的 C7 判据守着。
 
 ## 8. 已知边界
 

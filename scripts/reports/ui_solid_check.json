@@ -32,7 +32,7 @@
   {
     "item": "albedo 指向烘焙预览图",
     "expect": "含 /preview/albedo.png",
-    "actual": "/files/1e1a1716edd6/preview/albedo.png?t=1795411062466",
+    "actual": "/files/85967e24b0da/preview/albedo.png?t=1795411884621",
     "ok": true
   },
   {
@@ -62,7 +62,7 @@
   {
     "item": "换色后 albedo 仍走烘焙预览图",
     "expect": "含 /preview/albedo.png",
-    "actual": "/files/1e1a1716edd6/preview/albedo.png?t=1795411071435",
+    "actual": "/files/85967e24b0da/preview/albedo.png?t=1795411893697",
     "ok": true
   },
   {
@@ -100,7 +100,7 @@
   {
     "item": "纯色模式可导出 .ms",
     "expect": "结果区出现 .ms 路径",
-    "actual": "导出成功\n.ms\nD:\\Marvis skill\\3dsmax-material-forge\\output\\1e1a1716edd6\\export\\LatexPaint_FFFFFF\\LatexPaint_FFFFFF.ms\n导出目录\nD:\\Marvis skill\\3dsmax-material-forge\\outp",
+    "actual": "导出成功\n.ms\nD:\\Marvis skill\\3dsmax-material-forge\\output\\85967e24b0da\\export\\LatexPaint_FFFFFF\\LatexPaint_FFFFFF.ms\n导出目录\nD:\\Marvis skill\\3dsmax-material-forge\\outp",
     "ok": true
   },
   {

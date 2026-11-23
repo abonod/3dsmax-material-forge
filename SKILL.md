@@ -77,7 +77,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 | 上图 | `POST /api/upload`（multipart，字段 `file`） | `job_id`、`textures` 五通道路径 |
 | 重算贴图 | `POST /api/derive` | 更新后的 `textures` |
 | 导出 | `POST /api/export`（带参数 dict） | `ms_path`、`script_url`、`texture_dir`、`products` |
-| 可选 AI 增强 | `POST /api/ai_enhance` | `available`、`provider` |
+| 可选 AI 增强 | `POST /api/ai_enhance` | `available`、`provider`、`reason`（未启用时给出具体原因，如未配 `MATERIAL_AI_ENDPOINT`；`scenario` 为预留位，配 Key 也不生效） |
 | 导出前自检 | `POST /api/preflight`（带参数 dict） | `ok`、`blocking`、`warnings`、`items[]`、`env` |
 | 批量导出（0.12.0） | `POST /api/batch_export`（multipart，字段 `files` 多份 + `payload` JSON） | `ok_count`、`fail_count`、`items[]`（逐项 `ok` / `ms_path` / `dir` / `error`） |
 | 我的预设·读 | `GET /api/presets/user` | `presets{}`、`count`、`max` |
