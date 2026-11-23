@@ -130,7 +130,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，22 项断言）
 │   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 65 项与档位一致性
 │   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
-│   ├── run_all_checks.py        统一检查入口（18 项串跑，--fast 跳过 Edge 截图）
+│   ├── run_all_checks.py        统一检查入口（19 项串跑，--fast 跳过 Edge 截图）
 │   ├── mf_max_listener.ms       Max 端监听器：轮询 inbox → 校验 token/哈希 → fileIn → 写回执与心跳
 │   ├── selftest_max_bridge.py   送进 Max 协议自测 15 例（token/心跳/哈希不符/超时/越权拒绝）
 │   ├── capture_presets.py       真机 GUI 出图基线（逐预设截预览球 → reports/baseline/）

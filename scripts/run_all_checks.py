@@ -49,6 +49,10 @@ CHECKS = [
     # 「位图坐标类上有没有可写可回读的 real-world 属性名」——
     # 拿到真机日志之前不写映射代码，避免重演 0.9.x 属性名靠推理的静默失效。
     ("rw_probe",      "真实世界尺寸探针生成",  ["scripts/rw_probe_gen_check.py"], False),
+    # 日志一到就靠它出结论：把台账 §4「SCALE=1 才落映射 / =0 标不支持」的口径写成代码，
+    # 并拦住半截日志（无 RWPROBE_DONE）、「属性存在当可写」、结论行与判据行矛盾三种假通过。
+    # 无日志时只报「未判读」，绝不编结论。
+    ("rw_verdict",    "真实世界尺寸判读器自测", ["scripts/rw_probe_verdict.py", "--selftest"], False),
     ("p_series",      "P0-P7 落地审计",        ["scripts/p_series_audit.py"],     False),
     ("p_series_neg",  "P0-P7 审计反例自测",     ["scripts/p_series_audit.py", "--selftest"], False),
     # 一键送进 Max 的 inbox 协议自测：跨进程 + 会让 Max 执行脚本，安全边界

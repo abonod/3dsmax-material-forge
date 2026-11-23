@@ -240,8 +240,11 @@ python scripts/gen_rw_probe.py --out output/rw_probe.ms --log <绝对路径>/rw_
 3. 输出判据行：`RW_PROPS_HIT`、`RW_PROPS_WRITABLE`、`RW_SCALE_SUPPORTED`（0/1）、
    `RWPROBE_VERDICT`。
 
-门禁：`scripts/rw_probe_gen_check.py`（`run_all_checks` 第 16 项）守四件事——
+门禁：`scripts/rw_probe_gen_check.py`（`run_all_checks` 里的「真实世界尺寸探针生成」项）守四件事——
 占位符替换干净、判据行齐全、计数器是全局（写成 `local` 会假阴性）、GBK 可解析。
+判读：`scripts/rw_probe_verdict.py <日志绝对路径>` 按本节口径出结论（V1 判据行齐全 /
+V2 必须有 `RWPROBE_DONE=1` / V3 结论行与判据行不得矛盾 / V4 只允许「落映射」或「标不支持」两种走向），
+5 个反例自测由 `run_all_checks` 的「真实世界尺寸判读器自测」项守着。日志不存在时它只报「未判读」，不编结论。
 
 ### 判定口径（写死，不许事后放宽）
 
@@ -253,9 +256,10 @@ python scripts/gen_rw_probe.py --out output/rw_probe.ms --log <绝对路径>/rw_
 ### 当前状态
 
 **无真机证据**：探针已生成，未在 Max 中执行（运行期禁止启动 Max）。
-所以本节只登记「装置就绪 + 判据就位」，功能一律按未支持对待。
+所以本节只登记「装置就绪 + 判据就位 + 判读器就位」，功能一律按未支持对待。
 
 跑完把日志归档到 `docs/evidence/` 下（文件名带日期、Max 版本与渲染器），并在本表回填结论行原文。
+判读一条命令即可：`python scripts/rw_probe_verdict.py "<日志绝对路径>"`——它会打印结论档位、写入尝试过的属性名（落映射就用这些名字）与可回填本表的原文行。
 
 ---
 
