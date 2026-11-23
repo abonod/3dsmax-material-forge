@@ -57,11 +57,14 @@ TEMPLATE = r'''-- Material Forge 真实世界尺寸 UV 探针（自动生成，�
         )
     )
 
+    -- timestamp() 返回整数不是字符串：直接拼串在真机第 20 行报「类型错误」，
+    -- 必须显式 as string，否则分段头写不出来、整份脚本当场中断。
+    mfP ("RWPROBE_RUN_BEGIN=" + ((timestamp()) as string))
     mfP "===== Material Forge 真实世界尺寸 UV 探针 ====="
 @@PROBE@@
 
     -- 关键字命中：属性名里带 realworld / realscale / worldscale 才算候选
-    fn mfRwHit p = (
+    fn mfIsRwProp p = (
         local t = toLower (p as string)
         (((findString t "realworld") != undefined) or ((findString t "realscale") != undefined) or ((findString t "worldscale") != undefined))
     )
@@ -89,7 +92,12 @@ TEMPLATE = r'''-- Material Forge 真实世界尺寸 UV 探针（自动生成，�
 
     -- 计数器必须用全局：MAXScript 的 fn 里改外部 local 是按值捕获，
     -- 写成 local 会导致循环里加了但外面读还是 0，结论行直接假阴性。
-    ::mfRwHit = 0
+    -- 名字不得与任何 fn 同名：曾经叫 mfRwHit，与谓词 fn mfRwHit 撞名，
+    -- 首遍靠脚本作用域里 fn 优先侥幸跑通，第二遍 fileIn 时 mfRwHit 已是数字 0，
+    -- 第 119 行「调用需要函数或类，得到的是: 0」当场崩、日志停在半截。
+    -- 谓词函数同时改名 mfIsRwProp：旧会话里 mfRwHit 仍以数字 0 残留在全局，
+    -- 只要还有个 fn 叫这个名，重载时一样会被那个数字盖掉。
+    ::mfHitCount = 0
     ::mfRwWritable = 0
 
     -- dump 属性并试写：label 是日志前缀，full 为 true 时全量列（坐标类属性少），
@@ -99,8 +107,8 @@ TEMPLATE = r'''-- Material Forge 真实世界尺寸 UV 探针（自动生成，�
         try ( props = getPropNames obj ) catch ( props = #() )
         mfP ("RWSCAN " + label + " props=" + (props.count as string))
         for p in props do (
-            local hit = mfRwHit p
-            if (hit) do ::mfRwHit += 1
+            local hit = mfIsRwProp p
+            if (hit) do ::mfHitCount += 1
             if (full or hit) do (
                 local v = undefined
                 try ( v = getProperty obj p ) catch ( v = undefined )
@@ -169,7 +177,7 @@ TEMPLATE = r'''-- Material Forge 真实世界尺寸 UV 探针（自动生成，�
 
     -- C) 结论行：supported 只看"关键字命中且真写进去且回读一致"
     mfP "-----------------------------------"
-    mfP ("RW_PROPS_HIT=" + (::mfRwHit as string))
+    mfP ("RW_PROPS_HIT=" + (::mfHitCount as string))
     mfP ("RW_PROPS_WRITABLE=" + (::mfRwWritable as string))
     local sup = 0
     if (::mfRwWritable > 0) do sup = 1

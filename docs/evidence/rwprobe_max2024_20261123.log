@@ -1,0 +1,61 @@
+probe=output/rw_probe.ms
+sha256=CEDE3A4DD48866E4739E2A3A37103D5E22174C9CB0C20C5C6D6707469F2602E2
+host=Windows 10 / 3ds Max 2024 (MAX_VERSION=26000, MAX_LANG=zh)
+renderer=Arnold:Arnold (V-Ray + Corona 均 present)
+captured=2026-11-23 by computer-agent in MAXScript Listener, fileIn, single run
+verdict_cmd=python scripts/rw_probe_verdict.py docs/evidence/rwprobe_max2024_20261123.log
+---
+RWPROBE_RUN_BEGIN=51467338
+===== Material Forge 真实世界尺寸 UV 探针 =====
+MAX_VERSION=26000
+MAX_LANG=zh
+ACTIVE_RENDERER=Arnold:Arnold
+VRAY_AVAILABLE=present
+CORONA_AVAILABLE=present
+COMPAT_LEVEL=supported
+RWBITMAP Standard -> OK
+RWCOORDS Standard class=StandardUVGen
+RWSCAN coords props=28
+  RWPROP coords.blur = 1.0
+  RWPROP coords.mapping = 0
+  RWPROP coords.mapChannel = 1
+  RWPROP coords.mappingType = 0
+  RWPROP coords.UVW_Type = 0
+  RWPROP coords.U_Mirror = false
+  RWPROP coords.V_Mirror = false
+  RWPROP coords.U_Tile = true
+  RWPROP coords.V_Tile = true
+  RWPROP coords.showMapOnBack = true
+  RWPROP coords.Noise_On = false
+  RWPROP coords.Noise_Animate = false
+  RWPROP coords.UVTransform = (matrix3 [1,0,0] [0,1,0] [0,0,1] [0,0,0])
+  RWPROP coords.realWorldScale = false
+  RWTRY coords.realWorldScale -> OK(bool true)
+  RWPROP coords.realWorldHeight = 1.0
+  RWTRY coords.realWorldHeight -> OK(num 0.8)
+  RWPROP coords.realWorldWidth = 1.0
+  RWTRY coords.realWorldWidth -> OK(num 0.8)
+  RWPROP coords.phase = 0.0
+  RWPROP coords.U_TILING = 1.25
+  RWPROP coords.V_Tiling = 1.25
+  RWPROP coords.U_Offset = 0.0
+  RWPROP coords.V_Offset = 0.0
+  RWPROP coords.W_angle = 0.0
+  RWPROP coords.V_Angle = 0.0
+  RWPROP coords.U_Angle = 0.0
+  RWPROP coords.Blur_Offset = 0.0
+  RWPROP coords.Noise_Amount = 1.0
+  RWPROP coords.Noise_Size = 1.0
+  RWPROP coords.Noise_Levels = 1
+RWBITMAP CoronaTexmap -> OK
+RWSCAN corona props=33
+  RWPROP corona.realWorldScale = false
+  RWTRY corona.realWorldScale -> OK(bool true)
+RWCOORDS coronaCoords -> NONE
+-----------------------------------
+RW_PROPS_HIT=4
+RW_PROPS_WRITABLE=4
+RW_SCALE_SUPPORTED=1
+RWPROBE_VERDICT=PASS(存在可写可回读的 real-world 属性，可按日志里的属性名落映射)
+RWPROBE_DONE=1
+

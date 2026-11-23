@@ -38,6 +38,25 @@ from pathlib import Path
 JUDGE_KEYS = ("RW_PROPS_HIT", "RW_PROPS_WRITABLE", "RW_SCALE_SUPPORTED")
 
 
+def split_runs(text: str) -> list[str]:
+    """按 RWPROBE_RUN_BEGIN= 切段。
+
+    日志是追加写的：在 Max 里手滑跑两遍就会留下两段，后一段可能崩在半途
+    （2026-11-23 就是这么来的）。若整份当一份解析，「最后一次出现的判据行」
+    可能来自前一段，等于拿旧证据冒充最新结论——所以必须切段后只看最后一段。
+    没有分段头的老日志整份算一段，行为与从前一致。
+    """
+    lines = text.split("\n")
+    starts = [i for i, l in enumerate(lines) if l.startswith("RWPROBE_RUN_BEGIN=")]
+    if not starts:
+        return [text]
+    runs = []
+    for idx, s in enumerate(starts):
+        e = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
+        runs.append("\n".join(lines[s:e]))
+    return runs
+
+
 def parse(text: str) -> dict:
     """抽出判据行与候选属性名（取最后一次出现，探针追加模式会写多份）。"""
     vals: dict = {}
@@ -45,7 +64,9 @@ def parse(text: str) -> dict:
         m = re.findall(rf"^{k}=(\d+)\s*$", text, re.M)
         if m:
             vals[k] = int(m[-1])
-    m = re.findall(r"^RWPROBE_VERDICT=(\S*)", text, re.M)
+    # 取整行剩余，别用 \S+：真机写的是「PASS(存在可写可回读的 real-world 属性…)」，
+    # \S+ 会在第一个空格处截断，台账回填的原文就成了半句。
+    m = re.findall(r"^RWPROBE_VERDICT=(.*?)\s*$", text, re.M)
     if m:
         vals["RWPROBE_VERDICT"] = m[-1]
     vals["done"] = bool(re.search(r"^RWPROBE_DONE=1\s*$", text, re.M))
@@ -57,8 +78,14 @@ def parse(text: str) -> dict:
 
 def verdict(text: str) -> tuple[bool, str, list[str], dict]:
     """返回 (是否自洽可用, 结论档位, 问题列表, 解析结果)。"""
-    v = parse(text)
+    runs = split_runs(text)
+    v = parse(runs[-1])
+    v["runs"] = len(runs)
     probs: list[str] = []
+    if len(runs) > 1 and not v.get("done"):
+        probs.append(f"V5 日志里有 {len(runs)} 段运行，最后一段中断（无 RWPROBE_DONE=1）："
+                     "前面的段是旧证据，不能拿来冒充本次结论——请在 Max 里重跑一次探针")
+        return False, "FAIL", probs, v
     for k in JUDGE_KEYS:
         if k not in v:
             probs.append(f"V1 缺判据行 {k}（探针没跑完或输出被截断）")
@@ -100,6 +127,7 @@ def report(text: str) -> int:
     print(f"  RW_PROPS_HIT={v.get('RW_PROPS_HIT')}  RW_PROPS_WRITABLE={v.get('RW_PROPS_WRITABLE')}"
           f"  RW_SCALE_SUPPORTED={v.get('RW_SCALE_SUPPORTED')}")
     print(f"  RWPROBE_VERDICT={v.get('RWPROBE_VERDICT')!r}")
+    print(f"  运行段数：{v.get('runs', 1)}")
     if v["tried"]:
         print(f"  写入尝试过的属性（{len(v['tried'])}）：{', '.join(v['tried'])}")
     if v["hit_props"]:
@@ -127,7 +155,8 @@ def report(text: str) -> int:
     return 0
 
 
-SAMPLE_OK = """RWSCAN Standard props=12
+SAMPLE_OK = """RWPROBE_RUN_BEGIN=11/23/2026 13:50:00
+RWSCAN Standard props=12
   RWPROP Standard.realWorldScale = boolean
   RWTRY Standard.realWorldScale -> true/true
 RW_PROPS_HIT=1
@@ -137,7 +166,8 @@ RWPROBE_VERDICT=PASS
 RWPROBE_DONE=1
 """
 
-SAMPLE_NONE = """RWSCAN Standard props=9
+SAMPLE_NONE = """RWPROBE_RUN_BEGIN=11/23/2026 13:50:00
+RWSCAN Standard props=9
 RW_PROPS_HIT=0
 RW_PROPS_WRITABLE=0
 RW_SCALE_SUPPORTED=0
@@ -154,6 +184,10 @@ CASES = [
      SAMPLE_OK.replace("RW_PROPS_WRITABLE=1", "RW_PROPS_WRITABLE=0"), False, "FAIL"),
     ("N5 结论行与判据行矛盾",
      SAMPLE_NONE.replace("RWPROBE_VERDICT=NO-SUPPORT", "RWPROBE_VERDICT=PASS"), False, "FAIL"),
+    ("N6 多段日志最后一段中断（旧证据不得冒充本次结论）",
+     SAMPLE_OK + "RWPROBE_RUN_BEGIN=11/23/2026 14:00:00\nRWSCAN Standard props=12\n", False, "FAIL"),
+    ("N7 多段日志且最后一段完整（应采信最后一段）",
+     SAMPLE_NONE + SAMPLE_OK, True, "PASS"),
 ]
 
 

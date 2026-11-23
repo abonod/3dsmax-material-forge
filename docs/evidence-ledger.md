@@ -240,11 +240,13 @@ python scripts/gen_rw_probe.py --out output/rw_probe.ms --log <绝对路径>/rw_
 3. 输出判据行：`RW_PROPS_HIT`、`RW_PROPS_WRITABLE`、`RW_SCALE_SUPPORTED`（0/1）、
    `RWPROBE_VERDICT`。
 
-门禁：`scripts/rw_probe_gen_check.py`（`run_all_checks` 里的「真实世界尺寸探针生成」项）守四件事——
-占位符替换干净、判据行齐全、计数器是全局（写成 `local` 会假阴性）、GBK 可解析。
+门禁：`scripts/rw_probe_gen_check.py`（`run_all_checks` 里的「真实世界尺寸探针生成」项）守六件事——
+占位符替换干净、判据行齐全（含 `RWPROBE_RUN_BEGIN=`）、计数器是全局（写成 `local` 会假阴性）、
+**全局名不得与任何 fn 同名**、`timestamp()` 必须 `as string`、GBK 可解析；另带 4 个反例自测证明判据有判别力。
 判读：`scripts/rw_probe_verdict.py <日志绝对路径>` 按本节口径出结论（V1 判据行齐全 /
-V2 必须有 `RWPROBE_DONE=1` / V3 结论行与判据行不得矛盾 / V4 只允许「落映射」或「标不支持」两种走向），
-5 个反例自测由 `run_all_checks` 的「真实世界尺寸判读器自测」项守着。日志不存在时它只报「未判读」，不编结论。
+V2 必须有 `RWPROBE_DONE=1` / V3 结论行与判据行不得矛盾 / V4 只允许「落映射」或「标不支持」两种走向 /
+V5 多段日志只看最后一段，最后一段不完整即 FAIL，不许拿旧段冒充），
+7 个反例自测由 `run_all_checks` 的「真实世界尺寸判读器自测」项守着。日志不存在时它只报「未判读」，不编结论。
 
 ### 判定口径（写死，不许事后放宽）
 
@@ -253,12 +255,59 @@ V2 必须有 `RWPROBE_DONE=1` / V3 结论行与判据行不得矛盾 / V4 只允
 | `1` | 本机本版本存在可写可回读的 real-world 属性 | 按日志里的属性名落 `uv_map_size_m` 映射，并在矩阵里记 verified |
 | `0` | 找不到可写属性 | **不写进导出模板**；文档里「真实世界尺寸」标为不支持，不静默降级成 uv_tiling |
 
-### 当前状态
+### 当前状态：真机已取证（2026-11-23，PASS）
 
-**无真机证据**：探针已生成，未在 Max 中执行（运行期禁止启动 Max）。
-所以本节只登记「装置就绪 + 判据就位 + 判读器就位」，功能一律按未支持对待。
+**`RW_SCALE_SUPPORTED=1`。本机 3ds Max 2024 中文版存在可写可回读的 real-world 属性。**
 
-跑完把日志归档到 `docs/evidence/` 下（文件名带日期、Max 版本与渲染器），并在本表回填结论行原文。
+| 项 | 值 |
+|---|---|
+| 取证时间 | 2026-11-23 |
+| 宿主 | Windows 10 / 3ds Max 2024 中文版，`MAX_VERSION=26000`、`MAX_LANG=zh` |
+| 渲染器（活动） | `Arnold:Arnold`（V-Ray `present`、Corona `present`） |
+| 探针产物 | `output/rw_probe.ms`，SHA256 `CEDE3A4DD48866E4739E2A3A37103D5E22174C9CB0C20C5C6D6707469F2602E2` |
+| 日志归档 | `docs/evidence/rwprobe_max2024_20261123.log`（单段完整运行，1783 B + 表头） |
+| 执行方式 | Listener `fileIn @"D:/…/rw_probe.ms"`（正斜杠；见下方踩坑） |
+
+**结论行原文（回填口径以此为准）**
+
+```
+RW_PROPS_HIT=4 / RW_PROPS_WRITABLE=4 / RW_SCALE_SUPPORTED=1
+RWPROBE_VERDICT=PASS(存在可写可回读的 real-world 属性，可按日志里的属性名落映射)
+RWPROBE_DONE=1
+```
+
+**属性名表（落 `uv_map_size_m` 就用这些名字，中文版未本地化）**
+
+| 宿主对象 | 属性名 | 类型 | 写入回读 |
+|---|---|---|---|
+| `StandardUVGen`（`Bitmaptex.coordinates`） | `realWorldScale` | bool | `setProperty true` → 回读 `true` |
+| `StandardUVGen` | `realWorldHeight` | float | 写 `0.8` → 回读 `0.8` |
+| `StandardUVGen` | `realWorldWidth` | float | 写 `0.8` → 回读 `0.8` |
+| `CoronaTexmap`（位图自身） | `realWorldScale` | bool | `setProperty true` → 回读 `true` |
+
+**两条限制（写映射时必须遵守，别当全绿）**
+
+1. **Corona 侧只命中 1 个属性**：`RWCOORDS coronaCoords -> NONE`，Corona 位图取不到坐标对象，
+   宽高只能落在 Standard 侧属性上；Corona 位图本身只给 `realWorldScale` 开关。
+2. 中文版**类名**本地化、**属性名**不本地化（真机属性名仍是 `realWorldScale/Width/Height`），
+   此前的担心可以划掉：不存在按语言分支取属性名的必要。
+
+**本节仍未闭环的部分**：属性名有了，但 `uv_map_size_m` 映射**代码尚未写**，也没有渲染出图证据。
+所以在 `docs/version-matrix.md` 里这一项仍按未 verified 处理——属性可写 ≠ 出图正确，
+矩阵要等代码落地 + 出图对比后才改。
+
+### 回填过程中踩到的四个坑（都已进装置，别再犯）
+
+1. **计数器与谓词函数撞名**：计数器曾叫 `::mfRwHit`，谓词函数也叫 `mfRwHit`。首遍靠脚本作用域里
+   fn 优先侥幸跑通，第二遍 `fileIn` 时该名字已是数字 0，第 119 行「调用需要函数或类，得到的是: 0」
+   当场崩、日志停在半截。现计数器 `::mfHitCount`、谓词 `mfIsRwProp`，门禁守「全局名不得与 fn 同名」。
+2. **`timestamp()` 返回整数不是字符串**：`"..." + (timestamp())` 在真机第 20 行直接类型错误、
+   整份脚本不执行。必须 `((timestamp()) as string)`，门禁守。
+3. **多段日志会拿旧证据冒充新结论**：日志是追加写的，在 Max 里手滑跑两遍就有两段，后一段可能崩在半途。
+   现在每段开头写 `RWPROBE_RUN_BEGIN=`，判读器按段切分**只看最后一段**；最后一段不完整就 FAIL（V5）。
+4. **反斜杠路径 + 段首 `rw` 被当转义**：`fileIn @"D:\…\output\rw_probe.ms"` 里的 `\r` 被解析成回车，
+   报「无法打开文件」。注入时用正斜杠路径。
+
 判读一条命令即可：`python scripts/rw_probe_verdict.py "<日志绝对路径>"`——它会打印结论档位、写入尝试过的属性名（落映射就用这些名字）与可回填本表的原文行。
 
 ---
