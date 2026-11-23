@@ -130,7 +130,7 @@ description: "把参考图推导为 PBR 参数并生成可在 3ds Max 执行的 
 │   ├── ui_check.py              界面可验证性检查（独立端口 + Edge CDP，22 项断言）
 │   ├── registry_check.py        参数注册表守卫：文档 ↔ 代码的 65 项与档位一致性
 │   ├── export_guard_check.py    导出行为断言 42 项：材质隔离 / 自检 / 上传边界 / TTL
-│   ├── run_all_checks.py        统一检查入口（16 项串跑，--fast 跳过 Edge 截图）
+│   ├── run_all_checks.py        统一检查入口（18 项串跑，--fast 跳过 Edge 截图）
 │   ├── mf_max_listener.ms       Max 端监听器：轮询 inbox → 校验 token/哈希 → fileIn → 写回执与心跳
 │   ├── selftest_max_bridge.py   送进 Max 协议自测 15 例（token/心跳/哈希不符/超时/越权拒绝）
 │   ├── capture_presets.py       真机 GUI 出图基线（逐预设截预览球 → reports/baseline/）
@@ -239,7 +239,7 @@ Corona 的类名在中文版被本地化：物理材质 `classof` 显示为 **`_
 
 `preflight` 探测不到 Corona 只给 **WARN 不阻断**：脚本自带 `物理材质 → CoronaLegacyMtl → PhysicalMaterial` 降级链，装不上 Corona 时材质仍会以 Physical 落地，属性名对不上的逐项记 `[FAIL]` 而不是整体中断。
 
-**降级是降级，不是近似**：`PhysicalMaterial` 上不存在 V-Ray / Corona 的专属属性，落到这一步时脚本**不写入任何参数与贴图**（后续逐项 `[SKIP]` 就是证据），最终只得到一个同名空材质球，材质名带 `_降级_` 前缀便于识别。V-Ray 与 Corona 两条降级分支的日志都明确写出「裸材质 / 不做任何还原补偿」，不再声称「参数会尽量映射」——旧文案与实现不符，已按实现改掉。需要正确效果唯一的路是装好渲染器后重新导出。
+**降级是降级：专属属性全丢，但不至于拿到空材质**。`PhysicalMaterial` 上不存在 V-Ray / Corona 的专属属性，落到这一步时渲染器专属属性（`texmap_*` / `baseRoughness` / `metalnessMode` / 涂膜 / 绒毛 / SSS / 置换材质槽）一个都不会写，逐项记 `[SKIP]`；随后脚本 3.5 段会按**通用 PBR 近似**把它重建成一个有内容的材质——基色、粗糙度、金属度、折射率、自发光、透明、漫反射贴图、法线/凹凸贴图逐项尝试写入，成败各打一行 `[FALLBACK]`，结尾给「写入 N 项 / 跳过 M 项」的汇总。材质名带 `_降级_` 前缀便于识别。近似不是等价：没有折射透射与色散、没有涂膜/绒毛/SSS 分层、没有置换材质槽，所以两条降级分支的日志都写明「与目标材质不等价」，需要精确效果唯一的路是装好渲染器后重新导出。这条文案曾两度与实现相反（先声称「尽量映射」而实际什么都不写，后声称「不写任何参数」而实际已重写），现由 `scripts/fallback_claim_check.py` 钉死：文案与 `tpl_common.FALLBACK` 里真实的写入点数量必须同向，任一边改动而另一边不跟，门禁直接 FAIL。
 
 ## 交付前必须做的一步：静态体检
 

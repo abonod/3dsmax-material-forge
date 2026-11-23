@@ -183,8 +183,9 @@ VRAY_CREATE = r"""    -- ---------------- 1. 创建材质 ----------------
     if isVray then ( mfLog "[OK] VRayMtl 创建成功" )
     else (
         mfLog "**** [WARN] VRayMtl 不可用：V-Ray 未安装 / 未加载 / 未授权 ****"
-        mfLog "****          已降级为 PhysicalMaterial 裸材质：不写入任何参数/贴图（后续每个 [SKIP] 都源于此），只得到一个同名空材质球 ****"
-        mfLog "****          本产物与 VRayMtl 不等价，也不会做任何还原补偿；需要正确效果请装好 V-Ray 后重新导出 ****"
+        mfLog "****          已降级为 PhysicalMaterial：VRayMtl 专属属性一个都不会写，改由 3.5 段按通用 PBR 近似重写 ****"
+        mfLog "****          近似范围：基色 / 粗糙度 / 金属度 / 折射率 / 自发光 / 透明 / 漫反射与法线凹凸贴图，逐项结果见下方 [FALLBACK] 行与汇总计数 ****"
+        mfLog "****          与 VRayMtl 不等价（无折射透射与色散、无涂膜/绒毛/SSS 分层、无置换材质槽）；需要正确效果请装好 V-Ray 后重新导出 ****"
         try ( mtl = PhysicalMaterial() ) catch ( mtl = undefined )
         if mtl == undefined do (
             try ( mtl = StandardMaterial() ) catch ( mtl = undefined )

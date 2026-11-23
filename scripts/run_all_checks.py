@@ -54,6 +54,11 @@ CHECKS = [
     # 一键送进 Max 的 inbox 协议自测：跨进程 + 会让 Max 执行脚本，安全边界
     # （路径白名单/哈希/token/超时）必须每次交付前被验一遍，不能只靠真机跑通一次。
     ("max_bridge",    "送进 Max 桥协议自测",    ["scripts/selftest_max_bridge.py"], False),
+    # 降级文案 vs 降级实现：这条漂过两次且方向相反（先「尽量映射」实际不写、
+    # 后「不写任何参数」实际已重写），两处相隔 500 行分属不同文件，人工读不出来。
+    # 正例盯现行一致性，反例证明判据有判别力（任一反例不被抓住即整体失败）。
+    ("fallback_claim", "降级文案一致性",        ["scripts/fallback_claim_check.py"], False),
+    ("fallback_neg",   "降级文案判据反例自测",  ["scripts/fallback_claim_check.py", "--selftest"], False),
     ("ui",            "主界面结构",            ["scripts/ui_check.py"],          True),
     ("ui_solid",      "纯色模式像素",          ["scripts/ui_solid_check.py"],    True),
 ]
